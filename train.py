@@ -1,5 +1,6 @@
 import random
 
+import numpy as np
 import pandas as pd
 import torch
 from sklearn.model_selection import KFold
@@ -16,7 +17,7 @@ from model.bienc import Biencoder
 from model.losses import BidirectionalMarginLoss
 from utils import get_learning_rate_momentum
 
-TINY = True
+TINY = False
 DEBUG = False
 
 device = torch.device("cuda") if (not DEBUG) and torch.cuda.is_available() else torch.device("cpu")
@@ -73,6 +74,47 @@ def train_one_epoch(model, train_loader, device, loss_fn, optim, scheduler, use_
         step += 1
     return step
 
+
+def evaluate(model, val_loader, device, loss_fn, global_step, run):
+    """Performs in-batch validation."""
+    acc_cumsum = 0.0
+    loss_cumsum = 0.0
+    num_examples = 0
+    num_batches = 0
+
+    model.eval()
+    for batch in tqdm(val_loader):
+        batch = tuple(x.to(device) for x in batch)
+        *model_input, entity_idxs = batch
+        with torch.no_grad():
+            scores = model(*model_input)
+            mask = torch.full_like(scores, False, dtype=torch.bool)
+            mask[entity_idxs.unsqueeze(-1) == entity_idxs.unsqueeze(0)] = True
+            mask.fill_diagonal_(False)
+            loss = loss_fn(scores, mask)
+
+        scores = scores.detach().cpu().numpy()
+
+        bs = scores.shape[0]
+        preds = np.argmax(scores, axis=1)
+
+        acc_cumsum += np.sum(preds == np.arange(bs))
+        loss_cumsum += loss.item()
+        num_examples += bs
+        num_batches += 1
+
+    acc = acc_cumsum / num_examples
+    loss = loss_cumsum / num_batches
+
+    print(f"Evaluation in-batch accuracy: {acc:.5}")
+    print(f"Evaluation loss: {loss:.5}")
+
+    run["val/acc"].log(acc, step=global_step)
+    run["val/loss"].log(loss, step=global_step)
+
+    return {"acc": acc, "loss": loss}
+
+
 fold_idx = 0
 for topics_in_scope_train_idxs, topics_in_scope_val_idxs in KFold(n_splits=5).split(topics_in_scope):
     if not all_folds and fold_idx > 0:
@@ -96,7 +138,7 @@ for topics_in_scope_train_idxs, topics_in_scope_val_idxs in KFold(n_splits=5).sp
     loss_fn = BidirectionalMarginLoss(device, margin)
 
     train_loader = DataLoader(train_dset, batch_size=batch_size, shuffle=True)
-    val_loader = DataLoader(val_dset, batch_size=batch_size, shuffle=True)
+    val_loader = DataLoader(val_dset, batch_size=batch_size, shuffle=False)
     optim = AdamW(model.parameters(), lr=max_lr, weight_decay=weight_decay)
 
 
@@ -113,5 +155,8 @@ for topics_in_scope_train_idxs, topics_in_scope_val_idxs in KFold(n_splits=5).sp
         global_step = train_one_epoch(model, train_loader, device,
                                       loss_fn, optim, None, use_amp, scaler,
                                       global_step, run)
+
+        # Loss and in-batch accuracy for training validation set
+        evaluate(model, val_loader, device, loss_fn, global_step, run)
 
     fold_idx += 1
