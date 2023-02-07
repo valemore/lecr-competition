@@ -52,12 +52,10 @@ class BiencDataset(Dataset):
         self.content_num_tokens = content_num_tokens
         self.t2i = t2i
 
-        idx = 0
         for topic_id, content_ids, topic_id in tqdm(zip(topic_ids, topic_content_ids, topic_ids)):
             for content_id in content_ids.split():
                 self.topic_ids.append(topic_id)
                 self.content_ids.append(content_id)
-                self.t2i[topic_id] = idx
         self.i2t = {idx: topic_id for topic_id, idx in self.t2i.items()}
 
     def __getitem__(self, idx):
