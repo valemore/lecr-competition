@@ -9,7 +9,8 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 import neptune.new as neptune
 
-from config import DATA_DIR, VAL_SPLIT_SEED, BIENC_MODEL_NAME, TOPIC_NUM_TOKENS, CONTENT_NUM_TOKENS, SCORE_FN
+from config import DATA_DIR, VAL_SPLIT_SEED, BIENC_MODEL_NAME, TOPIC_NUM_TOKENS, CONTENT_NUM_TOKENS, SCORE_FN, \
+    NUM_WORKERS
 from data.content import get_content2text
 from data.dset import BiencDataset
 from data.topics import get_topic2text
@@ -33,7 +34,7 @@ topics_in_scope = sorted(list(set(corr_df["topic_id"])))
 random.seed(VAL_SPLIT_SEED)
 random.shuffle(topics_in_scope)
 
-batch_size = 32
+batch_size = 128
 max_lr = 3e-5
 weight_decay = 0.0
 margin = 6.0
@@ -137,8 +138,8 @@ for topics_in_scope_train_idxs, topics_in_scope_val_idxs in KFold(n_splits=5).sp
     model = Biencoder(SCORE_FN).to(device)
     loss_fn = BidirectionalMarginLoss(device, margin)
 
-    train_loader = DataLoader(train_dset, batch_size=batch_size, shuffle=True)
-    val_loader = DataLoader(val_dset, batch_size=batch_size, shuffle=False)
+    train_loader = DataLoader(train_dset, batch_size=batch_size, num_workers=NUM_WORKERS, shuffle=True)
+    val_loader = DataLoader(val_dset, batch_size=batch_size, num_workers=NUM_WORKERS, shuffle=False)
     optim = AdamW(model.parameters(), lr=max_lr, weight_decay=weight_decay)
 
 
