@@ -180,9 +180,6 @@ def main(tiny=False,
 
         # Prepare logging and saving
         run_start = datetime.utcnow().strftime("%m%d-%H%M%S")
-        checkpoint_dir = Path(output_dir) / f"{experiment_name}_{run_start}"
-        checkpoint_dir.mkdir(parents=True, exist_ok=True)
-
         run = neptune.init_run(
             project="vmorelli/kolibri",
             source_files=["src/**/*.py", "src/*.py"],
