@@ -51,7 +51,8 @@ def train_one_epoch(model, train_loader, device, loss_fn, optim, scheduler, use_
         run["train/loss"].log(loss.item(), step=step)
         lr, momentum = get_learning_rate_momentum(optim)
         run["lr"].log(lr, step=step)
-        run["momentum"].log(momentum, step=step)
+        if momentum:
+            run["momentum"].log(momentum, step=step)
 
         step += 1
     return step
