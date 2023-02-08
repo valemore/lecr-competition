@@ -13,8 +13,7 @@ import neptune.new as neptune
 import cupy as cp
 from cuml.neighbors import NearestNeighbors
 
-from config import DATA_DIR, VAL_SPLIT_SEED, BIENC_MODEL_NAME, TOPIC_NUM_TOKENS, CONTENT_NUM_TOKENS, SCORE_FN, \
-    NUM_WORKERS, NUM_NEIGHBORS
+from config import DATA_DIR, VAL_SPLIT_SEED, TOPIC_NUM_TOKENS, CONTENT_NUM_TOKENS, SCORE_FN, NUM_WORKERS, NUM_NEIGHBORS
 from data.content import get_content2text
 from data.dset import BiencDataset, BiencDataSetInference, BiencTopicEmbeddings
 from data.topics import get_topic2text
@@ -22,7 +21,7 @@ from model.bienc import Biencoder
 from model.losses import BidirectionalMarginLoss
 from utils import get_learning_rate_momentum, get_ranks, get_mean_inverse_rank, get_recall_dct, log_recall_dct
 
-TINY = True
+TINY = False
 DEBUG = False
 
 device = torch.device("cuda") if (not DEBUG) and torch.cuda.is_available() else torch.device("cpu")
@@ -216,28 +215,4 @@ for topics_in_scope_train_idxs, topics_in_scope_val_idxs in KFold(n_splits=5).sp
 
         # Evaluate inference
         evaluate_inference(val_corr_df, topic2text, content2text)
-
-        # val_topic_dset = BiencDataSetInference(val_corr_df["topic_id"], topic2text, TOPIC_NUM_TOKENS)
-        # val_topic_loader = DataLoader(val_topic_dset, batch_size=batch_size, num_workers=NUM_WORKERS, shuffle=False)
-        # topic_embs_dset = BiencTopicEmbeddings.from_model(model.topic_encoder, device, val_topic_loader, val_i2t)
-        #
-        # topic_embs_gpu = cp.array(topic_embs_dset.get_embs())
-        # nn_model = NearestNeighbors(n_neighbors=NUM_NEIGHBORS, metric='cosine')
-        # nn_model.fit(topic_embs_gpu)
-        #
-        # flat_content_ids = flatten_content_ids(val_corr_df)
-        # val_content_dset = BiencDataSetInference(flatten_content_ids(val_corr_df), content2text, CONTENT_NUM_TOKENS)
-        # val_content_loader = DataLoader(val_content_dset, batch_size=batch_size, num_workers=NUM_WORKERS, shuffle=False)
-        # content_embs = inference(model.topic_encoder, val_content_loader, device)
-        # content_embs_gpu = cp.array(content_embs)
-        # distances, indices = nn_model.kneighbors(content_embs_gpu)
-        #
-        # c2gold = get_content_id_gold(val_corr_df)
-        # ranks = get_ranks(cp.asnumpy(indices), flat_content_ids, c2gold, val_t2i)
-        # mir = get_mean_inverse_rank(ranks)
-        # recall_dct = get_recall_dct(ranks)
-        #
-        # run["val/mir"].log(mir, step=global_step)
-        # log_recall_dct(recall_dct, global_step, run, "val")
-
     fold_idx += 1
