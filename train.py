@@ -1,4 +1,5 @@
-from collections import defaultdict
+from datetime import datetime
+from pathlib import Path
 import random
 
 import numpy as np
@@ -13,38 +14,15 @@ import neptune.new as neptune
 import cupy as cp
 from cuml.neighbors import NearestNeighbors
 
+from bienc.inference import inference, get_topic_embeddings
 from config import DATA_DIR, VAL_SPLIT_SEED, TOPIC_NUM_TOKENS, CONTENT_NUM_TOKENS, SCORE_FN, NUM_WORKERS, NUM_NEIGHBORS
 from data.content import get_content2text
-from data.dset import BiencDataset, BiencDataSetInference, BiencTopicEmbeddings
+from bienc.dset import BiencDataset, BiencInferenceDataset
 from data.topics import get_topic2text
-from model.bienc import Biencoder
-from model.losses import BidirectionalMarginLoss
-from utils import get_learning_rate_momentum, get_ranks, get_mean_inverse_rank, get_recall_dct, log_recall_dct
-
-TINY = False
-DEBUG = False
-
-device = torch.device("cuda") if (not DEBUG) and torch.cuda.is_available() else torch.device("cpu")
-
-content_df = pd.read_csv(DATA_DIR / "content.csv")
-corr_df = pd.read_csv(DATA_DIR / "correlations.csv")
-topics_df = pd.read_csv(DATA_DIR / "topics.csv")
-
-if TINY:
-    corr_df = corr_df.iloc[:1000, :].reset_index(drop=True)
-
-topics_in_scope = sorted(list(set(corr_df["topic_id"])))
-random.seed(VAL_SPLIT_SEED)
-random.shuffle(topics_in_scope)
-
-batch_size = 128
-max_lr = 3e-5
-weight_decay = 0.0
-margin = 6.0
-num_epochs = 2
-use_amp = True
-experiment_name="first"
-all_folds = False
+from bienc.model import Biencoder
+from bienc.losses import BidirectionalMarginLoss
+from utils import get_learning_rate_momentum, get_ranks, get_mean_inverse_rank, get_recall_dct, log_recall_dct, \
+    flatten_content_ids, get_content_id_gold
 
 
 def train_one_epoch(model, train_loader, device, loss_fn, optim, scheduler, use_amp, scaler, global_step, run):
@@ -119,49 +97,25 @@ def evaluate(model, val_loader, device, loss_fn, global_step, run):
     return {"acc": acc, "loss": loss}
 
 
-def inference(encoder, loader, device):
-    embs = []
-    model.eval()
-    for batch in tqdm(loader):
-        batch = tuple(x.to(device) for x in batch)
-        with torch.no_grad():
-            emb = encoder(*batch)
-            embs.append(emb.cpu())
-    embs = torch.concat(embs, dim=0)
-    return embs
-
-
-def flatten_content_ids(corr_df):
-    return sorted(list(set([content_id for content_ids in corr_df["content_ids"] for content_id in content_ids.split()])))
-
-
-def get_content_id_gold(corr_df):
-    c2gold = defaultdict(set)
-    for topic_id, content_ids in zip(corr_df["topic_id"], corr_df["content_ids"]):
-        for content_id in content_ids.split():
-            c2gold[content_id].add(topic_id)
-    return c2gold
-
-
-def evaluate_inference(corr_df, topic2text, content2text):
-    topic_dset = BiencDataSetInference(corr_df["topic_id"], topic2text, TOPIC_NUM_TOKENS)
+def evaluate_inference(encoder, device, batch_size, corr_df, topic2text, content2text, t2i, global_step, run):
+    """Evaluates inference mode."""
+    topic_dset = BiencInferenceDataset(corr_df["topic_id"], topic2text, TOPIC_NUM_TOKENS)
     topic_loader = DataLoader(topic_dset, batch_size=batch_size, num_workers=NUM_WORKERS, shuffle=False)
-    topic_embs_dset = BiencTopicEmbeddings.from_model(model.topic_encoder, device, topic_loader, val_i2t)
-
-    topic_embs_gpu = cp.array(topic_embs_dset.get_embs())
+    topic_embs = get_topic_embeddings(encoder, device, topic_loader)
+    topic_embs = cp.array(topic_embs)
     nn_model = NearestNeighbors(n_neighbors=NUM_NEIGHBORS, metric='cosine')
-    nn_model.fit(topic_embs_gpu)
+    nn_model.fit(topic_embs)
 
     flat_content_ids = flatten_content_ids(corr_df)
-    content_dset = BiencDataSetInference(flatten_content_ids(corr_df), content2text, CONTENT_NUM_TOKENS)
+    content_dset = BiencInferenceDataset(flatten_content_ids(corr_df), content2text, CONTENT_NUM_TOKENS)
     content_loader = DataLoader(content_dset, batch_size=batch_size, num_workers=NUM_WORKERS, shuffle=False)
-    content_embs = inference(model.topic_encoder, content_loader, device)
+    content_embs = inference(encoder, content_loader, device)
     content_embs_gpu = cp.array(content_embs)
     indices = nn_model.kneighbors(content_embs_gpu, return_distance=False)
     indices = cp.asnumpy(indices)
 
     c2gold = get_content_id_gold(corr_df)
-    ranks = get_ranks(indices, flat_content_ids, c2gold, val_t2i)
+    ranks = get_ranks(indices, flat_content_ids, c2gold, t2i)
     mir = get_mean_inverse_rank(ranks)
     recall_dct = get_recall_dct(ranks)
 
@@ -169,50 +123,90 @@ def evaluate_inference(corr_df, topic2text, content2text):
     log_recall_dct(recall_dct, global_step, run, "val")
 
 
-fold_idx = 0
-for topics_in_scope_train_idxs, topics_in_scope_val_idxs in KFold(n_splits=5).split(topics_in_scope):
-    if not all_folds and fold_idx > 0:
-        break
-    train_topics = set(topics_in_scope[idx] for idx in topics_in_scope_train_idxs)
-    val_topics = set(topics_in_scope[idx] for idx in topics_in_scope_val_idxs)
-    train_corr_df = corr_df.loc[corr_df["topic_id"].isin(train_topics), :].reset_index(drop=True)
-    val_corr_df = corr_df.loc[corr_df["topic_id"].isin(val_topics), :].reset_index(drop=True)
+def main(tiny=False,
+         debug=False,
+         batch_size=128,
+         max_lr=3e-5,
+         weight_decay=0.0,
+         margin=6.0,
+         num_epochs=2,
+         use_amp=True,
+         experiment_name="first",
+         all_folds=False,
+         output_dir="../out"):
+    device = torch.device("cuda") if (not debug) and torch.cuda.is_available() else torch.device("cpu")
+    output_dir = Path(output_dir)
 
-    train_t2i = {topic: idx for idx, topic in enumerate(sorted(list(set(train_corr_df["topic_id"]))))}
-    val_t2i = {topic: idx for idx, topic in enumerate(sorted(list(set(val_corr_df["topic_id"]))))}
-    val_i2t = {idx: topic_id for topic_id, idx in val_t2i.items()}
+    content_df = pd.read_csv(DATA_DIR / "content.csv")
+    corr_df = pd.read_csv(DATA_DIR / "correlations.csv")
+    topics_df = pd.read_csv(DATA_DIR / "topics.csv")
 
-    topic2text = get_topic2text(topics_df)
-    content2text = get_content2text(content_df)
+    if tiny:
+        corr_df = corr_df.iloc[:1000, :].reset_index(drop=True)
 
-    train_dset = BiencDataset(train_corr_df["topic_id"], train_corr_df["content_ids"], topic2text, content2text, TOPIC_NUM_TOKENS, CONTENT_NUM_TOKENS, train_t2i)
-    val_dset = BiencDataset(val_corr_df["topic_id"], val_corr_df["content_ids"], topic2text, content2text, TOPIC_NUM_TOKENS, CONTENT_NUM_TOKENS, val_t2i)
+    topics_in_scope = sorted(list(set(corr_df["topic_id"])))
+    random.seed(VAL_SPLIT_SEED)
+    random.shuffle(topics_in_scope)
 
-    model = Biencoder(SCORE_FN).to(device)
-    loss_fn = BidirectionalMarginLoss(device, margin)
+    fold_idx = 0
+    for topics_in_scope_train_idxs, topics_in_scope_val_idxs in KFold(n_splits=5).split(topics_in_scope):
+        if not all_folds and fold_idx > 0:
+            break
+        train_topics = set(topics_in_scope[idx] for idx in topics_in_scope_train_idxs)
+        val_topics = set(topics_in_scope[idx] for idx in topics_in_scope_val_idxs)
+        train_corr_df = corr_df.loc[corr_df["topic_id"].isin(train_topics), :].reset_index(drop=True)
+        val_corr_df = corr_df.loc[corr_df["topic_id"].isin(val_topics), :].reset_index(drop=True)
 
-    train_loader = DataLoader(train_dset, batch_size=batch_size, num_workers=NUM_WORKERS, shuffle=True)
-    val_loader = DataLoader(val_dset, batch_size=batch_size, num_workers=NUM_WORKERS, shuffle=False)
-    optim = AdamW(model.parameters(), lr=max_lr, weight_decay=weight_decay)
+        train_t2i = {topic: idx for idx, topic in enumerate(sorted(list(set(train_corr_df["topic_id"]))))}
+        val_t2i = {topic: idx for idx, topic in enumerate(sorted(list(set(val_corr_df["topic_id"]))))}
+
+        topic2text = get_topic2text(topics_df)
+        content2text = get_content2text(content_df)
+
+        train_dset = BiencDataset(train_corr_df["topic_id"], train_corr_df["content_ids"],
+                                  topic2text, content2text, TOPIC_NUM_TOKENS, CONTENT_NUM_TOKENS, train_t2i)
+        val_dset = BiencDataset(val_corr_df["topic_id"], val_corr_df["content_ids"],
+                                topic2text, content2text, TOPIC_NUM_TOKENS, CONTENT_NUM_TOKENS, val_t2i)
+
+        model = Biencoder(SCORE_FN).to(device)
+        loss_fn = BidirectionalMarginLoss(device, margin)
+
+        train_loader = DataLoader(train_dset, batch_size=batch_size, num_workers=NUM_WORKERS, shuffle=True)
+        val_loader = DataLoader(val_dset, batch_size=batch_size, num_workers=NUM_WORKERS, shuffle=False)
+        optim = AdamW(model.parameters(), lr=max_lr, weight_decay=weight_decay)
+
+        scaler = torch.cuda.amp.GradScaler(enabled=use_amp)
+
+        # Prepare logging and saving
+        run_start = datetime.utcnow().strftime("%m%d-%H%M%S")
+        checkpoint_dir = Path(output_dir) / f"{experiment_name}_{run_start}"
+        checkpoint_dir.mkdir(parents=True, exist_ok=True)
+
+        run = neptune.init_run(
+            project="vmorelli/kolibri",
+            source_files=["src/**/*.py", "src/*.py"],
+            tags=[experiment_name] + [f"fold{fold_idx}"] + (["TINY"] if tiny else []) + (["DEBUG"] if debug else []))
+
+        # Train
+        global_step = 0
+        for epoch in tqdm(range(num_epochs)):
+            global_step = train_one_epoch(model, train_loader, device,
+                                          loss_fn, optim, None, use_amp, scaler,
+                                          global_step, run)
+
+            # Loss and in-batch accuracy for training validation set
+            evaluate(model, val_loader, device, loss_fn, global_step, run)
+
+            # Evaluate inference
+            evaluate_inference(model.topic_encoder, device, batch_size, val_corr_df, topic2text, content2text, val_t2i,
+                               global_step, run)
+
+        # Save artifacts
+        output_dir.mkdir(parents=True, exist_ok=True)
+        torch.save(model.topic_encoder, output_dir / f"{run_start}.pt")
+
+        fold_idx += 1
 
 
-    scaler = torch.cuda.amp.GradScaler(enabled=use_amp)
-
-    run = neptune.init_run(
-        project="vmorelli/kolibri",
-        source_files=["src/**/*.py", "src/*.py"],
-        tags=[experiment_name] + [f"fold{fold_idx}"] + (["TINY"] if TINY else []) + (["DEBUG"] if DEBUG else []))
-
-    # Train
-    global_step = 0
-    for epoch in tqdm(range(num_epochs)):
-        global_step = train_one_epoch(model, train_loader, device,
-                                      loss_fn, optim, None, use_amp, scaler,
-                                      global_step, run)
-
-        # Loss and in-batch accuracy for training validation set
-        evaluate(model, val_loader, device, loss_fn, global_step, run)
-
-        # Evaluate inference
-        evaluate_inference(val_corr_df, topic2text, content2text)
-    fold_idx += 1
+if __name__ == "__main__":
+    main()

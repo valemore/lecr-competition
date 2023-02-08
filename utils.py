@@ -1,10 +1,8 @@
 # Utility functions
-import math
 import pickle
-from pathlib import Path
+from collections import defaultdict
 
 import numpy as np
-import pandas as pd
 import torch
 
 
@@ -84,6 +82,7 @@ def get_ranks(indices, flat_content_ids, c2gold, t2i):
 
 
 def get_mean_inverse_rank(ranks):
+    """Compute mean inverse rank for RANKS of shape (num_examples,). An entry `-1` in RANKS indicates infinite rank."""
     notfound = ranks < 0
     mir = np.array(ranks)
     mir[notfound] = 0
@@ -96,3 +95,17 @@ def log_recall_dct(recall_dct, global_step, run, label):
     """Log a recall dictionary to neptune.ai"""
     for k, v in recall_dct.items():
         run[f"{label}/recall@{k}"].log(v, step=global_step)
+
+
+def flatten_content_ids(corr_df):
+    """Get flat list of all content ids in the correlation DataFrame."""
+    return sorted(list(set([content_id for content_ids in corr_df["content_ids"] for content_id in content_ids.split()])))
+
+
+def get_content_id_gold(corr_df):
+    """Get dictionary mapping content id to set of correct topic ids."""
+    c2gold = defaultdict(set)
+    for topic_id, content_ids in zip(corr_df["topic_id"], corr_df["content_ids"]):
+        for content_id in content_ids.split():
+            c2gold[content_id].add(topic_id)
+    return c2gold

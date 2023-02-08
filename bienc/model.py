@@ -12,10 +12,10 @@ class Biencoder(nn.Module):
         self.topic_encoder = self.content_encoder
         self.score_fn = score_fn
 
-    def forward(self, query_input_ids, query_attention_mask, ent_input_ids, ent_attention_mask):
-        query_emb = self.content_encoder(query_input_ids, query_attention_mask)
-        ent_emb = self.topic_encoder(ent_input_ids, ent_attention_mask)
-        return self.score_fn(query_emb, ent_emb)
+    def forward(self, content_input_ids, content_attention_mask, topic_input_ids, topic_attention_mask):
+        content_emb = self.content_encoder(content_input_ids, content_attention_mask)
+        topic_emb = self.topic_encoder(topic_input_ids, topic_attention_mask)
+        return self.score_fn(content_emb, topic_emb)
 
 
 class BiencoderModule(nn.Module):

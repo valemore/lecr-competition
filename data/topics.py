@@ -11,6 +11,7 @@ def build_text(topic_id, topic2title, topic2description, topic2parent):
         text += description
     return text
 
+
 def get_topic2text(topics_df):
     topic2title = {}
     topic2description = {}

@@ -1,7 +1,7 @@
 # Configuration variables that remain unchanged between training runs and those which carry over to production
 from pathlib import Path
 
-from model.losses import dot_score, cos_sim
+from bienc.losses import dot_score, cos_sim
 
 DATA_DIR = Path("../data")
 

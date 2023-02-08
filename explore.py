@@ -57,3 +57,89 @@ for topic_id, channel_id in topic2channel.items():
     channel2topics[channel_id].add(topic_id)
 
 [len(x) for x in channel2topics.values()]
+
+# Language
+content2lang = {}
+for content_id, language in zip(content_df["id"], content_df["language"]):
+    content2lang[content_id] = language
+
+topic2lang = {}
+for topic_id, language in zip(topics_df["id"], topics_df["language"]):
+    topic2lang[topic_id] = language
+
+# has content flag
+hascontent_dct = {}
+for topic_id, hascontent in zip(topics_df["id"], topics_df["has_content"]):
+    hascontent_dct[topic_id] = hascontent
+
+# Examine whether language flags and has_content flags are always correct
+non_matching_lang = set()
+incorrect_has_content_flag = set()
+for content_id, topic_ids in content2topics.items():
+    for topic_id in topic_ids:
+        if content2lang[content_id] != topic2lang[topic_id]:
+            non_matching_lang.add((content_id, topic_id))
+        if not hascontent_dct[topic_id]:
+            incorrect_has_content_flag.add(topic_id)
+
+len(set([x[1] for x in non_matching_lang])) / len(corr_df)
+# 0.010452395272851406 -  1% of topics have content items that don't align in their language
+
+# Language distribution
+topics_df.loc[topics_df["id"].isin(corr_df["topic_id"]), "language"].value_counts()
+# en     28053
+# es     11769
+# pt      3425
+# ar      3173
+# fr      3034
+# bg      2420
+# sw      2082
+# gu      1809
+# bn      1731
+# hi      1373
+# it       722
+# zh       672
+# mr       239
+# fil      224
+# as       126
+# my       110
+# km       104
+# kn        88
+# te        66
+# ur        54
+# or        51
+# ta        44
+# pnb       40
+# swa       33
+# pl        28
+# tr        26
+# ru        21
+
+content_df["language"].value_counts()
+# en     65939
+# es     30844
+# fr     10682
+# pt     10435
+# ar      7418
+# bg      6050
+# hi      4042
+# zh      3849
+# gu      3677
+# bn      2513
+# sw      1447
+# it      1300
+# mr       999
+# as       641
+# fil      516
+# km       505
+# kn       501
+# swa      495
+# or       326
+# pl       319
+# te       285
+# ur       245
+# tr       225
+# ta       216
+# my       206
+# ru       188
+# pnb      184
