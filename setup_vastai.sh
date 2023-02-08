@@ -1,2 +1,9 @@
 #!/bin/sh
-conda create --name dl --clone base
+SSH_PROFILE=$1
+ssh $SSH_PROFILE 'mkdir .kaggle'
+scp ~/.kaggle/kaggle.json $SSH_PROFILE:~/.kaggle/
+ssh $SSH_PROFILE 'mkdir kolibri'
+rsync --exclude-from exclude_file.txt -r ~/v/kolibri/kolibri-code/ $SSH_PROFILE:~/kolibri/kolibri-code
+
+scp ~/.ssh/vastai $SSH_PROFILE:~/.ssh/
+scp ~/.ssh/vastai.pub $SSH_PROFILE:~/.ssh/
