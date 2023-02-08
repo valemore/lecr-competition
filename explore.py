@@ -4,48 +4,73 @@ warnings.simplefilter(action='ignore', category=FutureWarning)
 from pathlib import Path
 import pandas as pd
 
+
+pd.options.display.max_columns = None
+pd.options.display.max_colwidth = None
+
 DATA_DIR = Path("../data")
 
 corr_df = pd.read_csv(DATA_DIR / "correlations.csv")
 topics_df = pd.read_csv(DATA_DIR / "topics.csv")
 content_df = pd.read_csv(DATA_DIR / "content.csv")
 
-foo = pd.Series([len(x.split()) for x in corr_df["content_ids"].items]) > 50
+# Check out topics with many contents
+# foo = pd.Series([len(x.split()) for x in corr_df["content_ids"].items]) > 50
+# corr_df.loc[foo, :].sample(1)
 
-corr_df.loc[foo, :].sample(1)
-
-pd.options.display.max_columns = None
-pd.options.display.max_colwidth = None
-topics_df.loc[topics_df["id"] == "t_8623f5b58d4c", :]
-
-topics_df.loc[topics_df["id"] == "t_92cf4e58f786", :]
+# topics_df.loc[topics_df["id"] == "t_8623f5b58d4c", :]
+#
+# topics_df.loc[topics_df["id"] == "t_92cf4e58f786", :]
 
 
-len(set(topics_df["channel"]))
+# Number of channels
+len(set(topics_df["channel"])) # 171
 
+# Topic 2 contents
+pd.Series([len(x.split()) for x in corr_df["content_ids"]]).describe()
+(pd.Series([len(x.split()) for x in corr_df["content_ids"]]) > 30).value_counts()
+# False    61068
+# True       449
 
-
+# Content 2 topics
 content2topics = defaultdict(set)
-
 for topic_id, content_ids in zip(corr_df["topic_id"], corr_df["content_ids"]):
     for content_id in content_ids.split():
         content2topics[content_id].add(topic_id)
-
 pd.Series(len(x) for x in content2topics.values()).describe()
+# count    154047.000000
+# mean          1.817101
+# std           2.003279
+# min           1.000000
+# 25%           1.000000
+# 50%           1.000000
+# 75%           2.000000
+# max         241.000000
 
+(pd.Series(len(x) for x in content2topics.values()) > 20).value_counts()
+# False    153912
+# True        135
 
+(pd.Series(len(x) for x in content2topics.values()) > 9).value_counts()
+# False    152326
+# True       1721
+
+# Topic 2 channel
 topic2channel = {}
 for topic_id, channel in zip(topics_df["id"], topics_df["channel"]):
     topic2channel[topic_id] = channel
 
+# Content 2 channels
 content2channels = defaultdict(set)
-
 for topic_id, content_ids in zip(corr_df["topic_id"], corr_df["content_ids"]):
     for content_id in content_ids.split():
         content2channels[content_id].add(topic2channel[topic_id])
-
-
 (pd.Series(len(x) for x in content2channels.values()) > 10).value_counts()
+# False    153945
+# True        102
+(pd.Series(len(x) for x in content2channels.values()) > 4).value_counts()
+# False    152068
+# True       1979
 
 
 # Can content be associated with multiple topics/channels?
