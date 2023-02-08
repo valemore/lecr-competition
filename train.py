@@ -1,6 +1,7 @@
 from datetime import datetime
 from pathlib import Path
 import random
+from typing import Set, List, Dict
 
 import numpy as np
 import pandas as pd
@@ -25,7 +26,7 @@ from utils import get_learning_rate_momentum, get_ranks, get_mean_inverse_rank, 
     flatten_content_ids, get_content_id_gold
 
 
-def train_one_epoch(model, train_loader, device, loss_fn, optim, scheduler, use_amp, scaler, global_step, run):
+def train_one_epoch(model, train_loader, device, loss_fn, optim, scheduler, use_amp, scaler, global_step: int, run):
     """Train one epoch of Bi-encoder."""
     step = global_step
     model.train()
@@ -98,7 +99,9 @@ def evaluate(model, val_loader, device, loss_fn, global_step, run):
     return {"acc": acc, "loss": loss}
 
 
-def evaluate_inference(encoder, device, batch_size, corr_df, topic2text, content2text, t2i, global_step, run):
+def evaluate_inference(encoder, device, batch_size, corr_df,
+                       topic2text: Dict[str, str], content2text: Dict[str, str], t2i: Dict[str, int],
+                       global_step: int, run):
     """Evaluates inference mode."""
     topic_dset = BiencInferenceDataset(corr_df["topic_id"], topic2text, TOPIC_NUM_TOKENS)
     topic_loader = DataLoader(topic_dset, batch_size=batch_size, num_workers=NUM_WORKERS, shuffle=False)
@@ -119,6 +122,9 @@ def evaluate_inference(encoder, device, batch_size, corr_df, topic2text, content
     ranks = get_ranks(indices, flat_content_ids, c2gold, t2i)
     mir = get_mean_inverse_rank(ranks)
     recall_dct = get_recall_dct(ranks)
+
+    print(f"Evaluation inference mode mean inverse rank: {mir:.5}")
+    print(f"Evaluation inference mode recall@1: {recall_dct[1]:.5}")
 
     run["val/mir"].log(mir, step=global_step)
     log_recall_dct(recall_dct, global_step, run, "val")
@@ -188,14 +194,17 @@ def main(tiny=False,
         # Train
         global_step = 0
         for epoch in tqdm(range(num_epochs)):
+            print(f"Training epoch {epoch}...")
             global_step = train_one_epoch(model, train_loader, device,
                                           loss_fn, optim, None, use_amp, scaler,
                                           global_step, run)
 
             # Loss and in-batch accuracy for training validation set
+            print(f"Running in-batch evaluation for epoch {epoch}...")
             evaluate(model, val_loader, device, loss_fn, global_step, run)
 
             # Evaluate inference
+            print(f"Running inference-mode evaluation for epoch {epoch}...")
             evaluate_inference(model.topic_encoder, device, batch_size, val_corr_df, topic2text, content2text, val_t2i,
                                global_step, run)
 

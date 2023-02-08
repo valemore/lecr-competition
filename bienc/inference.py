@@ -1,9 +1,5 @@
-import logging
 import torch
 from tqdm import tqdm
-
-
-logger = logging.getLogger(__name__)
 
 
 def get_topic_embeddings(encoder, device, data_loader):
@@ -16,7 +12,7 @@ def get_topic_embeddings(encoder, device, data_loader):
     """
     embs = []
 
-    logger.info("Preparing Bi-encoder inference dataset containing topic embeddings...")
+    print("Preparing Bi-encoder inference dataset containing topic embeddings...")
     encoder.eval()
     encoder.to(device)
 
