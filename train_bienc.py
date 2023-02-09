@@ -120,11 +120,18 @@ def evaluate_inference(encoder: BiencoderModule, device: torch.device, batch_siz
 
     get_log_rank_metrics(indices, content_ids, t2i, corr_df, global_step, run)
 
+    # TODO: Refactor and split logic
+    missing_content_ids = sorted([content_id for content_id in content2text if content_id not in set(content_ids)])
+    missing_distances, missing_indices = bienc_inference(missing_content_ids, encoder, nn_model, content2text, device, batch_size)
+    content_ids += missing_content_ids
+    distances = np.concatenate([distances, missing_distances], axis=0)
+    indices = np.concatenate([indices, missing_indices], axis=0)
+
     t2gold = get_topic_id_gold(corr_df)
     best_thresh = None
     best_fscore = -1.0
     thresh2score = {}
-    for thresh in np.arange(0.01, 1.01, 0.01):
+    for thresh in np.arange(0.1, 0.42, 0.02):
         c2preds = predict_topics(content_ids, distances, indices, thresh, t2i)
         t2preds = post_process(c2preds, indices, t2i)
         fscore = get_fscore(t2gold, t2preds)
