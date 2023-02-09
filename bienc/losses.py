@@ -4,7 +4,7 @@ from torch.nn import functional as F
 
 
 class BidirectionalMarginLoss:
-    def __init__(self, device, margin=0.0):
+    def __init__(self, device: torch.device, margin: float = 0.0):
         """
         Loss function for multiple negatives ranking loss with optional margin.
         Bi-directional means that we compute cross entropy loss both with respect to topic (given a topic embedding, pick the right content),
@@ -32,7 +32,7 @@ class BidirectionalMarginLoss:
 
 
 class UnidirectionalMarginLoss:
-    def __init__(self, device, margin=0.0):
+    def __init__(self, device: torch.device, margin=0.0):
         """
         Loss function for multiple negatives ranking loss with optional margin.
         :param device: torch device to use

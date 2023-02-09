@@ -9,7 +9,7 @@ from tqdm import tqdm
 from tokenizer import tokenizer
 
 
-def tokenize(text: str, num_tokens: int):
+def tokenize(text: str, num_tokens: int) -> Dict[str, List[int]]:
     """
     Get input ids and attention mask.
     :param text: text to tokenize

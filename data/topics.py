@@ -1,7 +1,17 @@
+from typing import Dict
+
 import pandas as pd
 
 
-def build_text(topic_id, topic2title, topic2description, topic2parent):
+def build_text(topic_id: str, topic2title: Dict[str, str], topic2description: Dict[str, str], topic2parent: Dict[str, str]) -> str:
+    """
+    Builds text representation for a topic.
+    :param topic_id: topic id
+    :param topic2title: dict mapping topic ids to titles
+    :param topic2description: dict mapping topic ids to descriptions
+    :param topic2parent: dict mapping topic id to parent topic id
+    :return: topic's text representation
+    """
     text = ""
     description = topic2description[topic_id]
     while topic_id is not None:
@@ -12,7 +22,12 @@ def build_text(topic_id, topic2title, topic2description, topic2parent):
     return text
 
 
-def get_topic2text(topics_df):
+def get_topic2text(topics_df: pd.DataFrame) -> Dict[str, str]:
+    """
+    Get dictionary mapping topic ids to their text representations.
+    :param topics_df: DataFrame from topics.csv
+    :return: dictionary mapping topic ids to their text representations
+    """
     topic2title = {}
     topic2description = {}
     topic2parent = {}
