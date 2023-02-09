@@ -138,11 +138,11 @@ def evaluate_inference(encoder: BiencoderModule, device: torch.device, batch_siz
 
     run["val/min_mir"].log(min_mir, step=global_step)
     run["val/max_mir"].log(max_mir, step=global_step)
-    log_recall_dct(min_recall_dct, global_step, run, "val")
-    log_recall_dct(max_recall_dct, global_step, run, "val")
+    log_recall_dct(min_recall_dct, global_step, run, "val_min")
+    log_recall_dct(max_recall_dct, global_step, run, "val_max")
 
 
-def main(tiny=True,
+def main(tiny=False,
          debug=False,
          batch_size=128,
          max_lr=3e-5,
