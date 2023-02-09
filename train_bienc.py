@@ -134,10 +134,10 @@ def evaluate_inference(encoder: BiencoderModule, device: torch.device, batch_siz
             best_thresh = thresh
         print(f"validation f2 using threshold {thresh}: {fscore:.5}")
         run[f"val/F2@{thresh}"].log(fscore, step=global_step)
-    run[f"val/best_thresh"].log(best_thresh, step=global_step)
     print(f"Best threshold: {best_thresh}")
     print(f"Best F2 score: {best_fscore}")
     run[f"val/best_thresh"].log(best_thresh, step=global_step)
+    run[f"val/best_F2"].log(best_fscore, step=global_step)
 
 
 def post_process(c2preds, indices, t2i):
