@@ -1,6 +1,6 @@
 #!/bin/sh
 SSH_PROFILE=$1
-ssh $SSH_PROFILE 'mkdir .kaggle'
+ssh $SSH_PROFILE 'mkdir -p .kaggle'
 scp ~/.kaggle/kaggle.json $SSH_PROFILE:~/.kaggle/
 ssh $SSH_PROFILE 'mkdir kolibri'
 rsync --exclude-from exclude_file.txt -r ~/v/kolibri/kolibri-code/ $SSH_PROFILE:~/kolibri/kolibri-code
