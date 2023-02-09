@@ -108,7 +108,14 @@ def evaluate_inference(encoder: BiencoderModule, device: torch.device, batch_siz
                        topic2text: dict[str, str], content2text: dict[str, str], t2i: dict[str, int],
                        global_step: int, run: Run) -> None:
     """Evaluates inference mode."""
-    topic_dset = BiencInferenceDataset(corr_df["topic_id"], topic2text, TOPIC_NUM_TOKENS)
+    # Make sure topic idxs align
+    ordered_topic_ids = sorted(list(set(corr_df["topic_id"])))
+    assert len(ordered_topic_ids) == len(t2i)
+    for topic_idx, topic_id in enumerate(ordered_topic_ids):
+        assert t2i[topic_id] == topic_idx
+
+    # Prepare neirest neighbors data structure for topics
+    topic_dset = BiencInferenceDataset(ordered_topic_ids, topic2text, TOPIC_NUM_TOKENS)
     topic_loader = DataLoader(topic_dset, batch_size=batch_size, num_workers=NUM_WORKERS, shuffle=False)
     print("Preparing Bi-encoder inference dataset containing topic embeddings...")
     topic_embs = embed(encoder, topic_loader, device)
@@ -116,6 +123,7 @@ def evaluate_inference(encoder: BiencoderModule, device: torch.device, batch_siz
     nn_model = NearestNeighbors(n_neighbors=NUM_NEIGHBORS, metric='cosine')
     nn_model.fit(topic_embs)
 
+    # Embed contents and find their nearest neighbors among topics
     flat_content_ids = flatten_content_ids(corr_df)
     content_dset = BiencInferenceDataset(flatten_content_ids(corr_df), content2text, CONTENT_NUM_TOKENS)
     content_loader = DataLoader(content_dset, batch_size=batch_size, num_workers=NUM_WORKERS, shuffle=False)
@@ -124,6 +132,7 @@ def evaluate_inference(encoder: BiencoderModule, device: torch.device, batch_siz
     indices = nn_model.kneighbors(content_embs_gpu, return_distance=False)
     indices = cp.asnumpy(indices)
 
+    # Compare with gold and compute metrics
     c2gold = get_content_id_gold(corr_df)
     min_ranks, max_ranks = get_min_max_ranks(indices, flat_content_ids, c2gold, t2i)
     min_mir = get_mean_inverse_rank(min_ranks)
