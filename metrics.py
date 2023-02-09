@@ -1,0 +1,30 @@
+def precision(gold: set[str], pred: set[str]):
+    if len(pred) == 0:
+        return 0.0
+    both = {p for p in pred if p in gold}
+    return len(both) / len(pred)
+
+
+def recall(gold: set[str], pred: set[str]):
+    if len(gold) == 0:
+        return 0.0
+    both = {g for g in gold if g in pred}
+    return len(both) / len(gold)
+
+
+def single_fscore(gold, pred, beta=2.0):
+    prec = precision(gold, pred)
+    rec = recall(gold, pred)
+    den = (beta ** 2 * prec) + rec
+    if (den == 0.0):
+        return 0.0
+    return (1 + beta ** 2) * prec * rec / den
+
+
+def get_fscore(t2gold: dict[str, set[str]], t2pred: dict[str, set[str]], beta=2.0):
+    assert len(t2gold) == len(t2pred)
+    score = 0.0
+    for topic_id, gold in t2gold.items():
+        pred = t2pred[topic_id]
+        score += single_fscore(gold, pred, beta)
+    return score / len(t2gold)

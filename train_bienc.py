@@ -123,16 +123,20 @@ def evaluate_inference(encoder: BiencoderModule, device: torch.device, batch_siz
     t2gold = get_topic_id_gold(corr_df)
     best_thresh = None
     best_fscore = -1.0
+    thresh2score = {}
     for thresh in np.arange(0.01, 1.01, 0.01):
         c2preds = predict_topics(content_ids, distances, indices, thresh, t2i)
         t2preds = post_process(c2preds, indices, t2i)
         fscore = get_fscore(t2gold, t2preds)
+        thresh2score[thresh] = fscore
         if fscore > best_fscore:
             best_fscore = fscore
             best_thresh = thresh
         print(f"validation f2 using threshold {thresh}: {fscore:.5}")
-        run[f"val/f2@{thresh}"].log(fscore, step=global_step)
+        run[f"val/F2@{thresh}"].log(fscore, step=global_step)
+    run[f"val/best_thresh"].log(best_thresh, step=global_step)
     print(f"Best threshold: {best_thresh}")
+    print(f"Best F2 score: {best_fscore}")
     run[f"val/best_thresh"].log(best_thresh, step=global_step)
 
 
