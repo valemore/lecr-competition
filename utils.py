@@ -67,3 +67,24 @@ def get_content_id_gold(corr_df: pd.DataFrame) -> dict[str, set[str]]:
         for content_id in content_ids.split():
             c2gold[content_id].add(topic_id)
     return c2gold
+
+
+def is_ordered(topic_ids: list[str]) -> bool:
+    """Verifies whether TOPIC_IDS are ordered."""
+    if len(topic_ids) < 1:
+        return True
+    prev = topic_ids[0]
+    for next in topic_ids[1:]:
+        if prev > next:
+            return False
+    return True
+
+
+def are_topics_aligned(topic_ids: list[str], t2i: dict[str, int]) -> bool:
+    """Verifies whether TOPIC_IDS and T2I represnt same order of topics."""
+    if len(topic_ids) != len(t2i):
+        return False
+    for topic_idx, topic_id in enumerate(topic_ids):
+        if t2i[topic_id] != topic_idx:
+            return False
+    return True
