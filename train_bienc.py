@@ -24,8 +24,9 @@ from bienc.dset import BiencDataset, BiencInferenceDataset
 from data.topics import get_topic2text
 from bienc.model import Biencoder, BiencoderModule
 from bienc.losses import BidirectionalMarginLoss
-from utils import get_learning_rate_momentum, get_min_max_ranks, get_mean_inverse_rank, get_recall_dct, log_recall_dct, \
+from utils import get_learning_rate_momentum, log_recall_dct, \
     flatten_content_ids, get_content_id_gold
+from bienc.metrics import get_recall_dct, get_min_max_ranks, get_mean_inverse_rank
 
 
 def train_one_epoch(model: Biencoder, loss_fn: LossFunction, train_loader: DataLoader, device: torch.device,
@@ -127,8 +128,8 @@ def evaluate_inference(encoder: BiencoderModule, device: torch.device, batch_siz
     min_ranks, max_ranks = get_min_max_ranks(indices, flat_content_ids, c2gold, t2i)
     min_mir = get_mean_inverse_rank(min_ranks)
     max_mir = get_mean_inverse_rank(max_ranks)
-    min_recall_dct = get_recall_dct(min_mir)
-    max_recall_dct = get_recall_dct(max_mir)
+    min_recall_dct = get_recall_dct(min_ranks)
+    max_recall_dct = get_recall_dct(max_ranks)
 
     print(f"Evaluation inference mode mean inverse min rank: {min_mir:.5}")
     print(f"Evaluation inference mode min recall@1: {min_recall_dct[1]:.5}")

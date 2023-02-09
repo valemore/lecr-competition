@@ -1,3 +1,4 @@
+# Inference for the Bi-encoder
 import torch
 from torch.utils.data import DataLoader
 from tqdm import tqdm
