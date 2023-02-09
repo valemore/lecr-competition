@@ -28,6 +28,15 @@ len(set(topics_df["channel"])) # 171
 
 # Topic 2 contents
 pd.Series([len(x.split()) for x in corr_df["content_ids"]]).describe()
+# count    61517.000000
+# mean         4.550271
+# std          6.700255
+# min          1.000000
+# 25%          2.000000
+# 50%          3.000000
+# 75%          5.000000
+# max        293.000000
+
 (pd.Series([len(x.split()) for x in corr_df["content_ids"]]) > 30).value_counts()
 # False    61068
 # True       449
@@ -73,7 +82,7 @@ for topic_id, content_ids in zip(corr_df["topic_id"], corr_df["content_ids"]):
 # True       1979
 
 
-# Can content be associated with multiple topics/channels?
+# Can content be associated with multiple topics/channels? Yes!
 # Split by channel or by topic? Also somehow by content?
 
 
