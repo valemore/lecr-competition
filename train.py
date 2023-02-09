@@ -15,7 +15,7 @@ import neptune.new as neptune
 import cupy as cp
 from cuml.neighbors import NearestNeighbors
 
-from bienc.inference import inference, get_topic_embeddings
+from bienc.inference import inference, embed
 from config import DATA_DIR, VAL_SPLIT_SEED, TOPIC_NUM_TOKENS, CONTENT_NUM_TOKENS, SCORE_FN, NUM_WORKERS, NUM_NEIGHBORS
 from data.content import get_content2text
 from bienc.dset import BiencDataset, BiencInferenceDataset
@@ -105,7 +105,8 @@ def evaluate_inference(encoder, device, batch_size, corr_df,
     """Evaluates inference mode."""
     topic_dset = BiencInferenceDataset(corr_df["topic_id"], topic2text, TOPIC_NUM_TOKENS)
     topic_loader = DataLoader(topic_dset, batch_size=batch_size, num_workers=NUM_WORKERS, shuffle=False)
-    topic_embs = get_topic_embeddings(encoder, device, topic_loader)
+    print("Preparing Bi-encoder inference dataset containing topic embeddings...")
+    topic_embs = embed(encoder, topic_loader, device)
     topic_embs = cp.array(topic_embs)
     nn_model = NearestNeighbors(n_neighbors=NUM_NEIGHBORS, metric='cosine')
     nn_model.fit(topic_embs)
@@ -113,7 +114,7 @@ def evaluate_inference(encoder, device, batch_size, corr_df,
     flat_content_ids = flatten_content_ids(corr_df)
     content_dset = BiencInferenceDataset(flatten_content_ids(corr_df), content2text, CONTENT_NUM_TOKENS)
     content_loader = DataLoader(content_dset, batch_size=batch_size, num_workers=NUM_WORKERS, shuffle=False)
-    content_embs = inference(encoder, content_loader, device)
+    content_embs = embed(encoder, content_loader, device)
     content_embs_gpu = cp.array(content_embs)
     indices = nn_model.kneighbors(content_embs_gpu, return_distance=False)
     indices = cp.asnumpy(indices)
@@ -136,7 +137,7 @@ def evaluate_inference(encoder, device, batch_size, corr_df,
     log_recall_dct(max_recall_dct, global_step, run, "val")
 
 
-def main(tiny=False,
+def main(tiny=True,
          debug=False,
          batch_size=128,
          max_lr=3e-5,
