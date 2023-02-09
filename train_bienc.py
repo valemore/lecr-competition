@@ -1,13 +1,14 @@
 from datetime import datetime
 from pathlib import Path
 import random
-from typing import Set, List, Dict
 
 import numpy as np
 import pandas as pd
 import torch
+from neptune.new import Run
 from sklearn.model_selection import KFold
-from torch.optim import AdamW
+from torch.cuda.amp import GradScaler
+from torch.optim import AdamW, Optimizer
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 import neptune.new as neptune
@@ -15,18 +16,20 @@ import neptune.new as neptune
 import cupy as cp
 from cuml.neighbors import NearestNeighbors
 
-from bienc.inference import inference, embed
+from bienc.inference import embed
+from bienc.typehints import LossFunction
 from config import DATA_DIR, VAL_SPLIT_SEED, TOPIC_NUM_TOKENS, CONTENT_NUM_TOKENS, SCORE_FN, NUM_WORKERS, NUM_NEIGHBORS
 from data.content import get_content2text
 from bienc.dset import BiencDataset, BiencInferenceDataset
 from data.topics import get_topic2text
-from bienc.model import Biencoder
+from bienc.model import Biencoder, BiencoderModule
 from bienc.losses import BidirectionalMarginLoss
 from utils import get_learning_rate_momentum, get_min_max_ranks, get_mean_inverse_rank, get_recall_dct, log_recall_dct, \
     flatten_content_ids, get_content_id_gold
 
 
-def train_one_epoch(model, train_loader, device, loss_fn, optim, scheduler, use_amp, scaler, global_step: int, run):
+def train_one_epoch(model: Biencoder, loss_fn: LossFunction, train_loader: DataLoader, device: torch.device,
+                    optim: Optimizer, scheduler, use_amp: bool, scaler: GradScaler, global_step: int, run: Run) -> int:
     """Train one epoch of Bi-encoder."""
     step = global_step
     model.train()
@@ -59,7 +62,8 @@ def train_one_epoch(model, train_loader, device, loss_fn, optim, scheduler, use_
     return step
 
 
-def evaluate(model, val_loader, device, loss_fn, global_step, run):
+def evaluate(model: Biencoder, loss_fn: LossFunction, val_loader: DataLoader, device: torch.device, global_step: int,
+             run: Run) -> dict[str, float]:
     """Performs in-batch validation."""
     acc_cumsum = 0.0
     loss_cumsum = 0.0
@@ -99,9 +103,9 @@ def evaluate(model, val_loader, device, loss_fn, global_step, run):
     return {"acc": acc, "loss": loss}
 
 
-def evaluate_inference(encoder, device, batch_size, corr_df,
-                       topic2text: Dict[str, str], content2text: Dict[str, str], t2i: Dict[str, int],
-                       global_step: int, run):
+def evaluate_inference(encoder: BiencoderModule, device: torch.device, batch_size: int, corr_df: pd.DataFrame,
+                       topic2text: dict[str, str], content2text: dict[str, str], t2i: dict[str, int],
+                       global_step: int, run: Run) -> None:
     """Evaluates inference mode."""
     topic_dset = BiencInferenceDataset(corr_df["topic_id"], topic2text, TOPIC_NUM_TOKENS)
     topic_loader = DataLoader(topic_dset, batch_size=batch_size, num_workers=NUM_WORKERS, shuffle=False)
@@ -120,7 +124,7 @@ def evaluate_inference(encoder, device, batch_size, corr_df,
     indices = cp.asnumpy(indices)
 
     c2gold = get_content_id_gold(corr_df)
-    min_ranks, max_ranks  = get_min_max_ranks(indices, flat_content_ids, c2gold, t2i)
+    min_ranks, max_ranks = get_min_max_ranks(indices, flat_content_ids, c2gold, t2i)
     min_mir = get_mean_inverse_rank(min_ranks)
     max_mir = get_mean_inverse_rank(max_ranks)
     min_recall_dct = get_recall_dct(min_mir)
@@ -189,7 +193,7 @@ def main(tiny=True,
         val_loader = DataLoader(val_dset, batch_size=batch_size, num_workers=NUM_WORKERS, shuffle=False)
         optim = AdamW(model.parameters(), lr=max_lr, weight_decay=weight_decay)
 
-        scaler = torch.cuda.amp.GradScaler(enabled=use_amp)
+        scaler = GradScaler(enabled=use_amp)
 
         # Prepare logging and saving
         run_start = datetime.utcnow().strftime("%m%d-%H%M%S")
@@ -202,13 +206,12 @@ def main(tiny=True,
         global_step = 0
         for epoch in tqdm(range(num_epochs)):
             print(f"Training epoch {epoch}...")
-            global_step = train_one_epoch(model, train_loader, device,
-                                          loss_fn, optim, None, use_amp, scaler,
+            global_step = train_one_epoch(model, loss_fn, train_loader, device, optim, None, use_amp, scaler,
                                           global_step, run)
 
             # Loss and in-batch accuracy for training validation set
             print(f"Running in-batch evaluation for epoch {epoch}...")
-            evaluate(model, val_loader, device, loss_fn, global_step, run)
+            evaluate(model, loss_fn, val_loader, device, global_step, run)
 
             # Evaluate inference
             print(f"Running inference-mode evaluation for epoch {epoch}...")
