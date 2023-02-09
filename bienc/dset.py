@@ -40,6 +40,8 @@ class BiencDataset(Dataset):
         :param topic_content_ids: iterable of iterable over content ids
         :param topic2text: dictionary mapping topic to its text representation
         :param content2text: dictionary mapping content to its text representation
+        :param topic_num_tokens: how many tokens to use for topic representation
+        :param content_num_tokens: how many tokens to use for content representation
         :param t2i: dictionary mapping topic id to index
         """
         self.topic_ids = []
@@ -72,8 +74,9 @@ class BiencInferenceDataset(Dataset):
     def __init__(self, data_ids: List[str], data2text: Dict[str, str], num_tokens: int):
         """
         Inference dataset for the bi-encoder embedding content and topic texts into the same space.
-        :param data_ids: iterable over topic ids or content ids
+        :param data_ids: list over topic ids or content ids
         :param data2text: dictionary mapping topic or content to its text representation
+        :param num_tokens: how many tokens to use for input representation
         """
         self.content_ids = data_ids
         self.content2text = data2text
