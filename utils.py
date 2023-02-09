@@ -59,26 +59,31 @@ def get_recall_dct(ranks):
     return recall_dct
 
 
-def get_ranks(indices, flat_content_ids, c2gold, t2i):
-    """Get ranks of gold labels in INDICES gathered from predictions and Nearest Neighbor search.
+def get_min_max_ranks(indices, flat_content_ids, c2gold, t2i):
+    """
+    Get ranks of gold labels in INDICES gathered from predictions and Nearest Neighbor search.
+    Returns both the the minimum and maximum rank of gold topics among predicted indices.
     :param indices: numpy array of shape (num_content_ids, num_neighbors) containing predicted topic indices
     :param flat_content_ids: content ids in the same order as indices
     :param c2gold: dict mapping content it to set of topic ids
     :param t2i: dict mapping topic id to topic index
     :return: numpy array of shape (num_content_ids,) with lowest rank of gold label, -1 if not found
     """
-    ranks = np.full(indices.shape[0], -1, dtype=int)
+    min_ranks = np.full(indices.shape[0], -1, dtype=int)
+    max_ranks = np.full(indices.shape[0], -1, dtype=int)
     i = 0
     for idxs, content_id in zip(indices, flat_content_ids):
         gold = c2gold[content_id]
         gold_idxs = np.array([t2i[g] for g in gold])
         found = np.argwhere(idxs.reshape(-1, 1) == gold_idxs.reshape(1, -1))[:, 0]
         if len(found) > 0:
-            ranks[i] = min(found)
+            min_ranks[i] = min(found)
+            max_ranks[i] = max(found)
         else:
-            ranks[i] = -1
+            min_ranks[i] = -1
+            max_ranks[i] = -1
         i += 1
-    return ranks
+    return min_ranks, max_ranks
 
 
 def get_mean_inverse_rank(ranks):

@@ -22,7 +22,7 @@ from bienc.dset import BiencDataset, BiencInferenceDataset
 from data.topics import get_topic2text
 from bienc.model import Biencoder
 from bienc.losses import BidirectionalMarginLoss
-from utils import get_learning_rate_momentum, get_ranks, get_mean_inverse_rank, get_recall_dct, log_recall_dct, \
+from utils import get_learning_rate_momentum, get_min_max_ranks, get_mean_inverse_rank, get_recall_dct, log_recall_dct, \
     flatten_content_ids, get_content_id_gold
 
 
@@ -119,15 +119,21 @@ def evaluate_inference(encoder, device, batch_size, corr_df,
     indices = cp.asnumpy(indices)
 
     c2gold = get_content_id_gold(corr_df)
-    ranks = get_ranks(indices, flat_content_ids, c2gold, t2i)
-    mir = get_mean_inverse_rank(ranks)
-    recall_dct = get_recall_dct(ranks)
+    min_ranks, max_ranks  = get_min_max_ranks(indices, flat_content_ids, c2gold, t2i)
+    min_mir = get_mean_inverse_rank(min_ranks)
+    max_mir = get_mean_inverse_rank(max_ranks)
+    min_recall_dct = get_recall_dct(min_mir)
+    max_recall_dct = get_recall_dct(max_mir)
 
-    print(f"Evaluation inference mode mean inverse rank: {mir:.5}")
-    print(f"Evaluation inference mode recall@1: {recall_dct[1]:.5}")
+    print(f"Evaluation inference mode mean inverse min rank: {min_mir:.5}")
+    print(f"Evaluation inference mode min recall@1: {min_recall_dct[1]:.5}")
+    print(f"Evaluation inference mode mean inverse max rank: {max_mir:.5}")
+    print(f"Evaluation inference mode max recall@1: {max_recall_dct[1]:.5}")
 
-    run["val/mir"].log(mir, step=global_step)
-    log_recall_dct(recall_dct, global_step, run, "val")
+    run["val/min_mir"].log(min_mir, step=global_step)
+    run["val/max_mir"].log(max_mir, step=global_step)
+    log_recall_dct(min_recall_dct, global_step, run, "val")
+    log_recall_dct(max_recall_dct, global_step, run, "val")
 
 
 def main(tiny=False,
