@@ -1,4 +1,5 @@
 from datetime import datetime
+from collections import defaultdict
 from pathlib import Path
 import random
 
@@ -13,7 +14,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 import neptune.new as neptune
 
-from bienc.inference import embed_topics_nn, bienc_inference
+from bienc.inference import embed_topics_nn, bienc_inference, predict_topics
 from bienc.typehints import LossFunction
 from config import DATA_DIR, VAL_SPLIT_SEED, TOPIC_NUM_TOKENS, CONTENT_NUM_TOKENS, SCORE_FN, NUM_WORKERS, NUM_NEIGHBORS
 from data.content import get_content2text
@@ -21,8 +22,9 @@ from bienc.dset import BiencDataset
 from data.topics import get_topic2text
 from bienc.model import Biencoder, BiencoderModule
 from bienc.losses import BidirectionalMarginLoss
+from metrics import get_fscore
 from utils import get_learning_rate_momentum, log_recall_dct, \
-    flatten_content_ids, get_content_id_gold, are_topics_aligned
+    flatten_content_ids, get_content_id_gold, are_topics_aligned, get_topic_id_gold
 from bienc.metrics import get_recall_dct, get_min_max_ranks, get_mean_inverse_rank
 
 
@@ -118,6 +120,38 @@ def evaluate_inference(encoder: BiencoderModule, device: torch.device, batch_siz
 
     get_log_rank_metrics(indices, content_ids, t2i, corr_df, global_step, run)
 
+    t2gold = get_topic_id_gold(corr_df)
+    best_thresh = None
+    best_fscore = -1.0
+    for thresh in np.arange(0.01, 1.01, 0.01):
+        c2preds = predict_topics(content_ids, distances, indices, thresh, t2i)
+        t2preds = post_process(c2preds, indices, t2i)
+        fscore = get_fscore(t2gold, t2preds)
+        if fscore > best_fscore:
+            best_fscore = fscore
+            best_thresh = thresh
+        print(f"validation f2 using threshold {thresh}: {fscore:.5}")
+        run[f"val/f2@{thresh}"].log(fscore, step=global_step)
+    print(f"Best threshold: {best_thresh}")
+    run[f"val/best_thresh"].log(best_thresh, step=global_step)
+
+
+def post_process(c2preds, indices, t2i):
+    t2preds = defaultdict(set)
+    c2i = {content_id: content_idx for content_idx, content_id in enumerate(sorted(c2preds))}
+    i2c = {content_idx: content_id for content_id, content_idx in c2i.items()}
+    for content_id, topic_ids in c2preds.items():
+        for topic_id in topic_ids:
+            t2preds[topic_id].add(content_id)
+    for topic_id in t2i:
+        content_ids = t2preds[topic_id]
+        if len(content_ids) == 0:
+            topic_idx = t2i[topic_id]
+            matches = np.argwhere(indices == topic_idx) # shape (num_matches, 2) -  last dimension distinguishes between content_idx and topic_idx
+            content_idx = np.argmin(matches, axis=0)[1]
+            t2preds[topic_id] = {i2c[content_idx]}
+    return t2preds
+
 
 def get_log_rank_metrics(indices,
                          content_ids: list[str], t2i: dict[str, int], corr_df: pd.DataFrame,
@@ -141,7 +175,7 @@ def get_log_rank_metrics(indices,
     log_recall_dct(max_recall_dct, global_step, run, "val_max")
 
 
-def main(tiny=True,
+def main(tiny=False,
          debug=False,
          batch_size=128,
          max_lr=3e-5,

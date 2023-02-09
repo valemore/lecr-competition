@@ -69,6 +69,17 @@ def get_content_id_gold(corr_df: pd.DataFrame) -> dict[str, set[str]]:
     return c2gold
 
 
+def get_topic_id_gold(corr_df: pd.DataFrame) -> dict[str, set[str]]:
+    """Get dictionary mapping topic id to set of correct content ids."""
+    t2gold = {}
+    for topic_id, content_ids in zip(corr_df["topic_id"], corr_df["content_ids"]):
+        t2gold[topic_id] = set()
+        assert len(content_ids) > 0
+        for content_id in content_ids.split():
+            t2gold[topic_id].add(content_id)
+    return t2gold
+
+
 def is_ordered(topic_ids: list[str]) -> bool:
     """Verifies whether TOPIC_IDS are ordered."""
     if len(topic_ids) < 1:

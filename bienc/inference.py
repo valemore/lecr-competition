@@ -48,10 +48,11 @@ def embed_topics_nn(encoder: BiencoderModule, topic_ids: list[str], topic2text: 
     return nn_model
 
 
-def predict_topics(content_ids: list[str], distances, indices, thresh) -> dict[str, list[str]]:
+def predict_topics(content_ids: list[str], distances, indices, thresh, t2i: dict[str, int]) -> dict[str, list[str]]:
+    i2t = {topic_idx: topic_id for topic_id, topic_idx in t2i.items()}
     c2preds = {}
     for content_id, dists, idxs in zip(content_ids, distances, indices):
-        c2preds[content_id] = idxs[dists <= thresh].tolist()
+        c2preds[content_id] = [i2t[idx] for idx in idxs[dists <= thresh].tolist()]
     return c2preds
 
 
