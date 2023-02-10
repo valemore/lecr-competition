@@ -23,6 +23,7 @@ from data.topics import get_topic2text
 from bienc.model import Biencoder, BiencoderModule
 from bienc.losses import BidirectionalMarginLoss
 from metrics import get_fscore
+from typehints import MetricDict
 from utils import get_learning_rate_momentum, log_recall_dct, flatten_content_ids, are_entity_ids_aligned, get_topic_id_gold
 from bienc.metrics import get_recall_dct, get_min_max_ranks, get_mean_inverse_rank
 
@@ -119,25 +120,62 @@ def evaluate_inference(encoder: BiencoderModule, device: torch.device, batch_siz
 
     # Rank metrics
     t2gold = get_topic_id_gold(corr_df)
-    get_log_rank_metrics(indices, data_ids, e2i, t2gold, global_step, run)
+    # get_log_rank_metrics(indices, data_ids, e2i, t2gold, global_step, run)
+    precision_dct, recall_dct, avg_precision_dct = get_precision_recall_metrics(indices, data_ids, e2i, t2gold)
+    log_precision_dct(precision_dct, "val/precision", global_step, run)
+    log_precision_dct(recall_dct, "val/recall", global_step, run)
+    log_precision_dct(avg_precision_dct, "val/avg_precision", global_step, run)
 
     # Thresholds
-    best_thresh = None
-    best_fscore = -1.0
-    thresh2score = {}
-    for thresh in np.arange(0.1, 0.32, 0.04):
-        t2preds = predict_entities(data_ids, distances, indices, thresh, e2i)
-        fscore = get_fscore(t2gold, t2preds)
-        thresh2score[thresh] = fscore
-        if fscore > best_fscore:
-            best_fscore = fscore
-            best_thresh = thresh
-        print(f"validation f2 using threshold {thresh}: {fscore:.5}")
-        run[f"val/F2@{thresh}"].log(fscore, step=global_step)
-    print(f"Best threshold: {best_thresh}")
-    print(f"Best F2 score: {best_fscore}")
-    run[f"val/best_thresh"].log(best_thresh, step=global_step)
-    run[f"val/best_F2"].log(best_fscore, step=global_step)
+    # best_thresh = None
+    # best_fscore = -1.0
+    # thresh2score = {}
+    # for thresh in np.arange(0.1, 0.32, 0.04):
+    #     t2preds = predict_entities(data_ids, distances, indices, thresh, e2i)
+    #     fscore = get_fscore(t2gold, t2preds)
+    #     thresh2score[thresh] = fscore
+    #     if fscore > best_fscore:
+    #         best_fscore = fscore
+    #         best_thresh = thresh
+    #     print(f"validation f2 using threshold {thresh}: {fscore:.5}")
+    #     run[f"val/F2@{thresh}"].log(fscore, step=global_step)
+    # print(f"Best threshold: {best_thresh}")
+    # print(f"Best F2 score: {best_fscore}")
+    # run[f"val/best_thresh"].log(best_thresh, step=global_step)
+    # run[f"val/best_F2"].log(best_fscore, step=global_step)
+
+
+def get_precision_recall_metrics(indices, topic_ids: list[str], e2i: dict[str, int], t2gold: dict[str, set[str]]) -> tuple[MetricDict, MetricDict, MetricDict]:
+    i2e = {entity_idx: entity_id for entity_id, entity_idx in e2i.items()}
+    tp = np.empty_like(indices, dtype=int) # mask indicating whether prediction is a true positive
+    num_gold = np.empty(len(topic_ids), dtype=int) # how many content ids are in gold?
+    for i, (idxs, topic_id) in enumerate(zip(indices, topic_ids)):
+        gold = t2gold[topic_id]
+        tp[i, :] = np.array([int(i2e[idx] in gold) for idx in idxs], dtype=int)
+        num_gold[i] = len(gold)
+
+    precision_dct = {num_cands: 0.0 for num_cands in range(1, NUM_NEIGHBORS + 1)}
+    recall_dct = {num_cands: 0.0 for num_cands in range(1, NUM_NEIGHBORS + 1)}
+    avg_precision_dct = {num_cands: 0.0 for num_cands in range(1, NUM_NEIGHBORS + 1)}
+
+    acc_tp = np.zeros(len(topic_ids), dtype=float) # accumulating true positives for all topic ids
+    acc_avg_prec = np.zeros(len(topic_ids), dtype=float) # accumulating average precisino for all topic ids
+    prev_rec = np.zeros(len(topic_ids), dtype=float) # previous recall
+    for j, num_cands in enumerate(range(1, NUM_NEIGHBORS + 1)):
+        acc_tp += tp[:, j]
+        prec = acc_tp / num_cands
+        rec = acc_tp / num_gold
+        acc_avg_prec += prec * (rec - prev_rec)
+        prev_rec = rec
+        precision_dct[num_cands] = np.mean(prec)
+        recall_dct[num_cands] = np.mean(rec)
+        avg_precision_dct[num_cands] = np.mean(acc_avg_prec)
+    return precision_dct, recall_dct, avg_precision_dct
+
+
+def log_precision_dct(dct: dict[int, float], label: str, global_step: int, run: Run):
+    for k, v in dct.items():
+        run[f"{label}@{k}"].log(v, step=global_step)
 
 
 def get_log_rank_metrics(indices,
