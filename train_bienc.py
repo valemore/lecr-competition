@@ -23,8 +23,7 @@ from data.topics import get_topic2text
 from bienc.model import Biencoder, BiencoderModule
 from bienc.losses import BidirectionalMarginLoss
 from metrics import get_fscore
-from utils import get_learning_rate_momentum, log_recall_dct, \
-    flatten_content_ids, get_content_id_gold, are_entity_ids_aligned, get_topic_id_gold, sanity_check_inputs
+from utils import get_learning_rate_momentum, log_recall_dct, flatten_content_ids, are_entity_ids_aligned, get_topic_id_gold
 from bienc.metrics import get_recall_dct, get_min_max_ranks, get_mean_inverse_rank
 
 
@@ -158,8 +157,8 @@ def get_log_rank_metrics(indices,
 
     run["val/min_mir"].log(min_mir, step=global_step)
     run["val/max_mir"].log(max_mir, step=global_step)
-    log_recall_dct(min_recall_dct, global_step, run, "val_min")
-    log_recall_dct(max_recall_dct, global_step, run, "val_max")
+    log_recall_dct(min_recall_dct, global_step, run, "val/min_recall")
+    log_recall_dct(max_recall_dct, global_step, run, "val/max_recall")
 
 
 def main(tiny=True,

@@ -52,7 +52,7 @@ def cache(fname: FName, fn: Callable[[], Any], refresh: bool = False) -> Any:
 def log_recall_dct(recall_dct: dict[int, float], global_step: int, run: Run, label: str) -> None:
     """Log a recall dictionary to neptune.ai"""
     for k, v in recall_dct.items():
-        run[f"{label}/recall@{k}"].log(v, step=global_step)
+        run[f"{label}@{k}"].log(v, step=global_step)
 
 
 def flatten_content_ids(corr_df: pd.DataFrame) -> list[str]:
