@@ -38,25 +38,25 @@ def get_submission_df(t2preds: Dict[str, Set[str]]) -> pd.DataFrame:
     return df
 
 
+def main(batch_size):
+    DATA_DIR = Path("/kaggle/input/learning-equality-curriculum-recommendations")
+    BIENCODER_FNAME = "/kaggle/input/kolibri-model/biencoder.pt"
+    THRESH = 0.18
 
-DATA_DIR = Path("../data")
-BIENCODER_FNAME = "../out/0210-143245.pt"
-THRESH = 0.18
-batch_size = 128
+    device = torch.device("cuda")
+    encoder = get_biencoder(BIENCODER_FNAME, device)
 
-device = torch.device("cuda")
-encoder = get_biencoder(BIENCODER_FNAME, device)
+    content_df = pd.read_csv(DATA_DIR / "content.csv")
+    topics_df = pd.read_csv(DATA_DIR / "topics.csv")
+    topic_ids = get_test_topic_ids("../data/sample_submission.csv")
+    content_ids = sorted(list(set(content_df["id"])))
+    c2i = {content_id: content_idx for content_idx, content_id in enumerate(content_ids)}
 
-content_df = pd.read_csv(DATA_DIR / "content.csv")
-topics_df = pd.read_csv(DATA_DIR / "topics.csv")
-topic_ids = get_test_topic_ids("../data/sample_submission.csv")
-content_ids = sorted(list(set(content_df["id"])))
-c2i = {content_id: content_idx for content_idx, content_id in enumerate(content_ids)}
+    topic2text = get_topic2text(topics_df)
+    content2text = get_content2text(content_df)
 
-topic2text = get_topic2text(topics_df)
-content2text = get_content2text(content_df)
-
-nn_model = embed_and_nn(encoder, content_ids, content2text, NUM_NEIGHBORS, batch_size, device)
-distances, indices = entities_inference(topic_ids, encoder, nn_model, topic2text, device, batch_size)
-t2preds = predict_entities(topic_ids, distances, indices, THRESH, c2i)
-submission_df = get_submission_df(t2preds)
+    nn_model = embed_and_nn(encoder, content_ids, content2text, NUM_NEIGHBORS, batch_size, device)
+    distances, indices = entities_inference(topic_ids, encoder, nn_model, topic2text, device, batch_size)
+    t2preds = predict_entities(topic_ids, distances, indices, THRESH, c2i)
+    submission_df = get_submission_df(t2preds)
+    return submission_df
