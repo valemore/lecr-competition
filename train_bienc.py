@@ -282,7 +282,7 @@ def main(tiny=False,
 
         # Save artifacts
         output_dir.mkdir(parents=True, exist_ok=True)
-        torch.save(model.topic_encoder.state_dict(), output_dir / f"{run_start}.pt")
+        torch.save(model.topic_encoder.state_dict(), output_dir / f"{experiment_name}_{run_start}.pt")
 
         fold_idx += 1
 
