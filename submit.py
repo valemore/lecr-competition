@@ -1,27 +1,22 @@
-import json
-
-import cupy as cp
 from pathlib import Path
+
 import pandas as pd
 import torch
-from cuml import NearestNeighbors
-from torch.utils.data import DataLoader
 
-from bienc.dset import BiencInferenceDataset
-from bienc.inference import embed, embed_and_nn, embed_data, prepare_nn, entities_inference
+from bienc.inference import embed_and_nn, entities_inference, predict_entities
 from bienc.model import BiencoderModule
-from config import NUM_NEIGHBORS, TOPIC_NUM_TOKENS, NUM_WORKERS, CONTENT_NUM_TOKENS
+from config import NUM_NEIGHBORS
 from data.content import get_content2text
 from data.topics import get_topic2text
-from utils import flatten_content_ids
+from typehints import FName
 
 
-def get_test_topic_ids(fname):
+def get_test_topic_ids(fname: FName) -> list[str]:
     df = pd.read_csv(fname)
-    return df["topic_id"]
+    return sorted(list(set(df["topic_id"])))
 
 
-def get_biencoder(fname, device):
+def get_biencoder(fname: FName, device: torch.device) -> BiencoderModule:
     model = BiencoderModule()
     model.to(device)
     if device.type == "cpu":
@@ -33,53 +28,34 @@ def get_biencoder(fname, device):
     return model
 
 
+def get_submissions_df(t2preds: dict[str, set[str]]) -> pd.DataFrame:
+    def to_str(content_ids):
+        " ".join(sorted(list(content_ids)))
+    topic_id_col = sorted(t2preds.keys())
+    content_ids_col = [to_str(t2preds[topic_id]) for topic_id in topic_id_col]
+    df = pd.DataFrame({"topic_id": topic_id_col, "content_ids": content_ids_col})
+    return df
+
+
+
 DATA_DIR = Path("../data")
+BIENCODER_FNAME = "../out/0210-143245.pt"
+THRESH = 0.18
 batch_size = 128
 
-device = torch.device("cpu")
-topic_ids = get_test_topic_ids("../data/sample_submission.csv")
-encoder = get_biencoder("../out/0208-163213.pt", device)
+device = torch.device("cuda")
+encoder = get_biencoder(BIENCODER_FNAME, device)
 
 content_df = pd.read_csv(DATA_DIR / "content.csv")
 topics_df = pd.read_csv(DATA_DIR / "topics.csv")
+topic_ids = get_test_topic_ids("../data/sample_submission.csv")
+content_ids = sorted(list(set(content_df["id"])))
+c2i = {content_id: content_idx for content_idx, content_id in enumerate(content_ids)}
 
 topic2text = get_topic2text(topics_df)
 content2text = get_content2text(content_df)
 
-content_ids = sorted(list(set(content_df["id"])))
-
-with open("../out/seen_topics.json", "r") as f:
-    seen_topic_ids = set(json.load(f))
-with open("../out/seen_content.json", "r") as f:
-    seen_content_ids = set(json.load(f))
-
-new_topic_ids = sorted(set(topic_ids) - seen_topic_ids)
-new_content_ids = sorted(set(content_ids) - seen_content_ids)
-
-# Back to list
-seen_topic_ids = sorted(list(seen_topic_ids))
-seen_content_ids = sorted(list(seen_content_ids))
-
-seen_topic_embs = embed_data(encoder, seen_topic_ids, topic2text, batch_size, device)
-new_topic_embs = embed_data(encoder, new_topic_ids, topic2text, batch_size, device)
-
-seen_content_dset = BiencInferenceDataset(seen_content_ids, content2text, CONTENT_NUM_TOKENS)
-new_content_dset = BiencInferenceDataset(new_content_ids, content2text, CONTENT_NUM_TOKENS)
-
-
-nn_model = prepare_nn(new_topic_embs, NUM_NEIGHBORS)
-distances, indices = entities_inference()
-
-
-
-content_dset = BiencInferenceDataset(content_ids, content2text, CONTENT_NUM_TOKENS)
-content_loader = DataLoader(content_dset, batch_size=batch_size, num_workers=NUM_WORKERS, shuffle=False)
-content_embs = inference(encoder, content_loader, device)
-content_embs_gpu = cp.array(content_embs)
-indices = nn_model.kneighbors(content_embs_gpu, return_distance=False)
-indices = cp.asnumpy(indices)
-
-c2gold = get_content_id_gold(gold_df)
-ranks = get_ranks(indices, content_ids, c2gold, t2i)
-mir = get_mean_inverse_rank(ranks)
-recall_dct = get_recall_dct(ranks)
+nn_model = embed_and_nn(encoder, content_ids, content2text, NUM_NEIGHBORS, batch_size, device)
+distances, indices = entities_inference(topic_ids, encoder, nn_model, topic2text, device, batch_size)
+t2preds = predict_entities(topic_ids, distances, indices, THRESH, c2i)
+submission_df = get_submissions_df(t2preds)

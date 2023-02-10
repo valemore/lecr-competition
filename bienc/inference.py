@@ -65,7 +65,7 @@ def predict_entities(topic_ids: list[str], distances, indices, thresh, e2i: dict
     for data_id, dists, idxs in zip(topic_ids, distances, indices):
         t2preds[data_id] = set(i2e[idx] for idx in idxs[dists <= thresh])
         if not t2preds[data_id]:
-            t2preds[data_id] = set(i2e[idxs[0]])
+            t2preds[data_id] = set([i2e[idxs[0]]])
     return t2preds
 
 
