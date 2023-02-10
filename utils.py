@@ -80,22 +80,39 @@ def get_topic_id_gold(corr_df: pd.DataFrame) -> dict[str, set[str]]:
     return t2gold
 
 
-def is_ordered(topic_ids: list[str]) -> bool:
-    """Verifies whether TOPIC_IDS are ordered."""
-    if len(topic_ids) < 1:
+def is_ordered(data_ids: list[str]) -> bool:
+    """Verifies whether DATA_IDS are ordered."""
+    if len(data_ids) < 1:
         return True
-    prev = topic_ids[0]
-    for next in topic_ids[1:]:
+    prev = data_ids[0]
+    for next in data_ids[1:]:
         if prev > next:
             return False
     return True
 
 
-def are_topics_aligned(topic_ids: list[str], t2i: dict[str, int]) -> bool:
+def are_entity_ids_aligned(entity_ids: list[str], e2i: dict[str, int]) -> bool:
     """Verifies whether TOPIC_IDS and T2I represnt same order of topics."""
-    if len(topic_ids) != len(t2i):
+    if len(entity_ids) != len(e2i):
         return False
-    for topic_idx, topic_id in enumerate(topic_ids):
-        if t2i[topic_id] != topic_idx:
+    for entity_idx, entity_id in enumerate(entity_ids):
+        if e2i[entity_id] != entity_idx:
             return False
     return True
+
+
+def sanity_check_inputs(content_df, corr_df, topics_df):
+    content_ids_set = set(content_df["id"])
+    assert len(content_df["id"]) == len(content_ids_set)
+    assert is_ordered(content_df["id"])
+    assert len(corr_df["topic_id"]) == len(set(corr_df["topic_id"]))
+    assert is_ordered(corr_df["topic_id"])
+    topic_ids_set = set(topics_df["id"])
+    assert len(topics_df["id"]) == len(topic_ids_set)
+    assert is_ordered(topics_df["id"])
+
+    for topic_id, content_ids in zip(corr_df["topic_id"], corr_df["content_ids"]):
+        assert topic_id in topic_ids_set
+        assert len(content_ids) > 0
+        for content_id in content_ids:
+            assert content_id in content_ids_set

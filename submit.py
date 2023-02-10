@@ -1,3 +1,5 @@
+import json
+
 import cupy as cp
 from pathlib import Path
 import pandas as pd
@@ -6,7 +8,7 @@ from cuml import NearestNeighbors
 from torch.utils.data import DataLoader
 
 from bienc.dset import BiencInferenceDataset
-from bienc.inference import embed, inference
+from bienc.inference import embed, embed_and_nn, embed_data, prepare_nn, entities_inference
 from bienc.model import BiencoderModule
 from config import NUM_NEIGHBORS, TOPIC_NUM_TOKENS, NUM_WORKERS, CONTENT_NUM_TOKENS
 from data.content import get_content2text
@@ -44,14 +46,32 @@ topics_df = pd.read_csv(DATA_DIR / "topics.csv")
 topic2text = get_topic2text(topics_df)
 content2text = get_content2text(content_df)
 
-topic_dset = BiencInferenceDataset(list(topic_ids), topic2text, TOPIC_NUM_TOKENS)
-topic_loader = DataLoader(topic_dset, batch_size=batch_size, num_workers=NUM_WORKERS, shuffle=False)
-topic_embs = embed(encoder, topic_loader, device)
-topic_embs = cp.array(topic_embs)
-nn_model = NearestNeighbors(n_neighbors=NUM_NEIGHBORS, metric='cosine')
-nn_model.fit(topic_embs)
-
 content_ids = sorted(list(set(content_df["id"])))
+
+with open("../out/seen_topics.json", "r") as f:
+    seen_topic_ids = set(json.load(f))
+with open("../out/seen_content.json", "r") as f:
+    seen_content_ids = set(json.load(f))
+
+new_topic_ids = sorted(set(topic_ids) - seen_topic_ids)
+new_content_ids = sorted(set(content_ids) - seen_content_ids)
+
+# Back to list
+seen_topic_ids = sorted(list(seen_topic_ids))
+seen_content_ids = sorted(list(seen_content_ids))
+
+seen_topic_embs = embed_data(encoder, seen_topic_ids, topic2text, batch_size, device)
+new_topic_embs = embed_data(encoder, new_topic_ids, topic2text, batch_size, device)
+
+seen_content_dset = BiencInferenceDataset(seen_content_ids, content2text, CONTENT_NUM_TOKENS)
+new_content_dset = BiencInferenceDataset(new_content_ids, content2text, CONTENT_NUM_TOKENS)
+
+
+nn_model = prepare_nn(new_topic_embs, NUM_NEIGHBORS)
+distances, indices = entities_inference()
+
+
+
 content_dset = BiencInferenceDataset(content_ids, content2text, CONTENT_NUM_TOKENS)
 content_loader = DataLoader(content_dset, batch_size=batch_size, num_workers=NUM_WORKERS, shuffle=False)
 content_embs = inference(encoder, content_loader, device)

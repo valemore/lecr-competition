@@ -14,7 +14,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 import neptune.new as neptune
 
-from bienc.inference import embed_topics_nn, bienc_inference, predict_topics
+from bienc.inference import embed_and_nn, entities_inference, predict_entities
 from bienc.typehints import LossFunction
 from config import DATA_DIR, VAL_SPLIT_SEED, TOPIC_NUM_TOKENS, CONTENT_NUM_TOKENS, SCORE_FN, NUM_WORKERS, NUM_NEIGHBORS
 from data.content import get_content2text
@@ -24,7 +24,7 @@ from bienc.model import Biencoder, BiencoderModule
 from bienc.losses import BidirectionalMarginLoss
 from metrics import get_fscore
 from utils import get_learning_rate_momentum, log_recall_dct, \
-    flatten_content_ids, get_content_id_gold, are_topics_aligned, get_topic_id_gold
+    flatten_content_ids, get_content_id_gold, are_entity_ids_aligned, get_topic_id_gold
 from bienc.metrics import get_recall_dct, get_min_max_ranks, get_mean_inverse_rank
 
 
@@ -104,37 +104,31 @@ def evaluate(model: Biencoder, loss_fn: LossFunction, val_loader: DataLoader, de
 
 
 def evaluate_inference(encoder: BiencoderModule, device: torch.device, batch_size: int, corr_df: pd.DataFrame,
-                       topic2text: dict[str, str], content2text: dict[str, str], t2i: dict[str, int],
+                       topic2text: dict[str, str], content2text: dict[str, str], e2i: dict[str, int],
                        global_step: int, run: Run) -> None:
     """Evaluates inference mode."""
-    # Make sure topic idxs align
-    topic_ids = sorted(list(set(corr_df["topic_id"])))
-    assert are_topics_aligned(topic_ids, t2i)
+    # Make sure entity idxs align
+    entity_ids = sorted(list(content2text.keys()))
+    assert are_entity_ids_aligned(entity_ids, e2i)
 
-    # Prepare neirest neighbors data structure for topics
-    nn_model = embed_topics_nn(encoder, topic_ids, topic2text, NUM_NEIGHBORS, batch_size, device)
+    # Prepare nearest neighbors data structure for entities
+    nn_model = embed_and_nn(encoder, entity_ids, content2text, NUM_NEIGHBORS, batch_size, device)
 
     # Get nearest neighbor distances and indices
-    content_ids = flatten_content_ids(corr_df)
-    distances, indices = bienc_inference(content_ids, encoder, nn_model, content2text, device, batch_size)
+    data_ids = sorted(list(set(corr_df["topic_id"])))
+    distances, indices = entities_inference(data_ids, encoder, nn_model, topic2text, device, batch_size)
 
-    get_log_rank_metrics(indices, content_ids, t2i, corr_df, global_step, run)
+    # Rank metrics
+    e2gold = get_topic_id_gold(corr_df)
+    get_log_rank_metrics(indices, data_ids, e2i, e2gold, global_step, run)
 
-    # TODO: Refactor and split logic
-    missing_content_ids = sorted([content_id for content_id in content2text if content_id not in set(content_ids)])
-    missing_distances, missing_indices = bienc_inference(missing_content_ids, encoder, nn_model, content2text, device, batch_size)
-    content_ids += missing_content_ids
-    distances = np.concatenate([distances, missing_distances], axis=0)
-    indices = np.concatenate([indices, missing_indices], axis=0)
-
-    t2gold = get_topic_id_gold(corr_df)
+    # Thresholds
     best_thresh = None
     best_fscore = -1.0
     thresh2score = {}
-    for thresh in np.arange(0.1, 0.42, 0.02):
-        c2preds = predict_topics(content_ids, distances, indices, thresh, t2i)
-        t2preds = post_process(c2preds, indices, t2i)
-        fscore = get_fscore(t2gold, t2preds)
+    for thresh in np.arange(0.1, 0.32, 0.04):
+        t2preds = predict_entities(data_ids, distances, indices, thresh, e2i)
+        fscore = get_fscore(e2gold, t2preds)
         thresh2score[thresh] = fscore
         if fscore > best_fscore:
             best_fscore = fscore
@@ -147,29 +141,11 @@ def evaluate_inference(encoder: BiencoderModule, device: torch.device, batch_siz
     run[f"val/best_F2"].log(best_fscore, step=global_step)
 
 
-def post_process(c2preds, indices, t2i):
-    t2preds = defaultdict(set)
-    c2i = {content_id: content_idx for content_idx, content_id in enumerate(sorted(c2preds))}
-    i2c = {content_idx: content_id for content_id, content_idx in c2i.items()}
-    for content_id, topic_ids in c2preds.items():
-        for topic_id in topic_ids:
-            t2preds[topic_id].add(content_id)
-    for topic_id in t2i:
-        content_ids = t2preds[topic_id]
-        if len(content_ids) == 0:
-            topic_idx = t2i[topic_id]
-            matches = np.argwhere(indices == topic_idx) # shape (num_matches, 2) -  last dimension distinguishes between content_idx and topic_idx
-            content_idx = np.argmin(matches, axis=0)[1]
-            t2preds[topic_id] = {i2c[content_idx]}
-    return t2preds
-
-
 def get_log_rank_metrics(indices,
-                         content_ids: list[str], t2i: dict[str, int], corr_df: pd.DataFrame,
+                         data_ids: list[str], e2i: dict[str, int], e2gold: dict[str, set[str]],
                          global_step: int, run: Run) -> None:
     """Compare with gold, compute and log rank metrics."""
-    c2gold = get_content_id_gold(corr_df)
-    min_ranks, max_ranks = get_min_max_ranks(indices, content_ids, c2gold, t2i)
+    min_ranks, max_ranks = get_min_max_ranks(indices, data_ids, e2gold, e2i)
     min_mir = get_mean_inverse_rank(min_ranks)
     max_mir = get_mean_inverse_rank(max_ranks)
     min_recall_dct = get_recall_dct(min_ranks)
@@ -186,8 +162,7 @@ def get_log_rank_metrics(indices,
     log_recall_dct(max_recall_dct, global_step, run, "val_max")
 
 
-def main(tiny=False,
-         debug=False,
+def main(tiny=True,
          batch_size=128,
          max_lr=3e-5,
          weight_decay=0.0,
@@ -197,15 +172,18 @@ def main(tiny=False,
          experiment_name="first",
          all_folds=False,
          output_dir="../out"):
-    device = torch.device("cuda") if (not debug) and torch.cuda.is_available() else torch.device("cpu")
+    device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
     output_dir = Path(output_dir)
 
     content_df = pd.read_csv(DATA_DIR / "content.csv")
     corr_df = pd.read_csv(DATA_DIR / "correlations.csv")
     topics_df = pd.read_csv(DATA_DIR / "topics.csv")
+    topics_df = topics_df.loc[topics_df["id"].isin(set(corr_df["topic_id"])), :]
 
     if tiny:
-        corr_df = corr_df.iloc[:1000, :].reset_index(drop=True)
+        corr_df = corr_df.sample(1000).reset_index(drop=True)
+        content_df = content_df.loc[content_df["id"].isin(
+            set(flatten_content_ids(corr_df)) | set(content_df["id"].sample(1000))), :].reset_index(drop=True)
 
     topics_in_scope = sorted(list(set(corr_df["topic_id"])))
     random.seed(VAL_SPLIT_SEED)
@@ -222,6 +200,8 @@ def main(tiny=False,
 
         train_t2i = {topic: idx for idx, topic in enumerate(sorted(list(set(train_corr_df["topic_id"]))))}
         val_t2i = {topic: idx for idx, topic in enumerate(sorted(list(set(val_corr_df["topic_id"]))))}
+
+        c2i = {content_id: content_idx for content_idx, content_id in enumerate(sorted(set(content_df["id"])))}
 
         topic2text = get_topic2text(topics_df)
         content2text = get_content2text(content_df)
@@ -245,7 +225,7 @@ def main(tiny=False,
         run = neptune.init_run(
             project="vmorelli/kolibri",
             source_files=["src/**/*.py", "src/*.py"],
-            tags=[experiment_name] + [f"fold{fold_idx}"] + (["TINY"] if tiny else []) + (["DEBUG"] if debug else []))
+            tags=[experiment_name] + [f"fold{fold_idx}"] + (["TINY"] if tiny else []))
 
         # Train
         global_step = 0
@@ -260,7 +240,7 @@ def main(tiny=False,
 
             # Evaluate inference
             print(f"Running inference-mode evaluation for epoch {epoch}...")
-            evaluate_inference(model.topic_encoder, device, batch_size, val_corr_df, topic2text, content2text, val_t2i,
+            evaluate_inference(model.topic_encoder, device, batch_size, val_corr_df, topic2text, content2text, c2i,
                                global_step, run)
 
         # Save artifacts

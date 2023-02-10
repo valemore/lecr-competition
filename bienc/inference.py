@@ -33,46 +33,59 @@ def embed(encoder: BiencoderModule, data_loader: DataLoader, device: torch.devic
     return embs
 
 
-def embed_topics_nn(encoder: BiencoderModule, topic_ids: list[str], topic2text: dict[str, str],
-                    num_neighbors: int,
-                    batch_size: int, device: torch.device):
-    """Embeds topics and prepares nearest neighbors data structure."""
-    assert is_ordered(topic_ids)
-    topic_dset = BiencInferenceDataset(topic_ids, topic2text, TOPIC_NUM_TOKENS)
-    topic_loader = DataLoader(topic_dset, batch_size=batch_size, num_workers=NUM_WORKERS, shuffle=False)
-    print("Preparing Bi-encoder inference dataset containing topic embeddings...")
-    topic_embs = embed(encoder, topic_loader, device)
-    topic_embs = cp.array(topic_embs)
+def embed_data(encoder: BiencoderModule, data_ids: list[str], data2text: dict[str, str],
+               batch_size: int, device: torch.device):
+    assert is_ordered(data_ids)
+    dset = BiencInferenceDataset(data_ids, data2text, TOPIC_NUM_TOKENS)
+    loader = DataLoader(dset, batch_size=batch_size, num_workers=NUM_WORKERS, shuffle=False)
+    print("Preparing Bi-encoder inference dataset containing entity embeddings...")
+    embs = embed(encoder, loader, device)
+    return embs
+
+
+def prepare_nn(embs, num_neighbors: int):
+    embs = cp.array(embs)
     nn_model = NearestNeighbors(n_neighbors=num_neighbors, metric='cosine')
-    nn_model.fit(topic_embs)
+    nn_model.fit(embs)
     return nn_model
 
 
-def predict_topics(content_ids: list[str], distances, indices, thresh, t2i: dict[str, int]) -> dict[str, list[str]]:
-    i2t = {topic_idx: topic_id for topic_id, topic_idx in t2i.items()}
-    c2preds = {}
-    for content_id, dists, idxs in zip(content_ids, distances, indices):
-        c2preds[content_id] = [i2t[idx] for idx in idxs[dists <= thresh].tolist()]
-    return c2preds
+def embed_and_nn(encoder: BiencoderModule, data_ids: list[str], data2text: dict[str, str],
+                 num_neighbors: int,
+                 batch_size: int, device: torch.device):
+    """Embeds and prepares nearest neighbors data structure."""
+    embs = embed_data(encoder, data_ids, data2text, batch_size, device)
+    nn_model = prepare_nn(embs, num_neighbors)
+    return nn_model
 
 
-def bienc_inference(content_ids: list[str], encoder: BiencoderModule, nn_model: NearestNeighbors,
-                    content2text: dict[str, str],
-                    device: torch.device, batch_size: int) -> tuple[Any, Any]:
+def predict_entities(topic_ids: list[str], distances, indices, thresh, e2i: dict[str, int]) -> dict[str, set[str]]:
+    i2e = {entity_idx: entity_id for entity_id, entity_idx in e2i.items()}
+    t2preds = {}
+    for data_id, dists, idxs in zip(topic_ids, distances, indices):
+        t2preds[data_id] = set(i2e[idx] for idx in idxs[dists <= thresh])
+        if not t2preds[data_id]:
+            t2preds[data_id] = set(i2e[idxs[0]])
+    return t2preds
+
+
+def entities_inference(data_ids: list[str], encoder: BiencoderModule, nn_model: NearestNeighbors,
+                       data2text: dict[str, str],
+                       device: torch.device, batch_size: int) -> tuple[Any, Any]:
     """
-    Embed contents and find their nearest neighbors among topics.
-    :param content_ids: content ids for which we are performing inference
+    Embed data and find their nearest neighbors among entities.
+    :param data_ids: data ids for which we are performing inference
     :param encoder: trained Bi-encoder encoder
     :param nn_model: Rapids nearest neighbor data structure
-    :param content2text: dict mapping content ids to their text representations
+    :param data2text: dict mapping data ids to their text representations
     :param device: device we are running inference on
     :param batch_size: batch size to use
     :return: distances, indices: both are numpy arrays of shape (num_examples, num_neighbors)
     """
-    content_dset = BiencInferenceDataset(content_ids, content2text, CONTENT_NUM_TOKENS)
-    content_loader = DataLoader(content_dset, batch_size=batch_size, num_workers=NUM_WORKERS, shuffle=False)
-    content_embs = embed(encoder, content_loader, device)
-    content_embs_gpu = cp.array(content_embs)
-    distances, indices = nn_model.kneighbors(content_embs_gpu, return_distance=True)
+    dset = BiencInferenceDataset(data_ids, data2text, CONTENT_NUM_TOKENS)
+    loader = DataLoader(dset, batch_size=batch_size, num_workers=NUM_WORKERS, shuffle=False)
+    embs = embed(encoder, loader, device)
+    embs = cp.array(embs)
+    distances, indices = nn_model.kneighbors(embs, return_distance=True)
     distances, indices = cp.asnumpy(distances), cp.asnumpy(indices)
     return distances, indices
