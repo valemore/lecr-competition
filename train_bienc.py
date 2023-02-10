@@ -115,7 +115,7 @@ def evaluate_inference(encoder: BiencoderModule, device: torch.device, batch_siz
     nn_model = embed_and_nn(encoder, entity_ids, content2text, NUM_NEIGHBORS, batch_size, device)
 
     # Get nearest neighbor distances and indices
-    data_ids = corr_df["topic_id"]
+    data_ids = corr_df["topic_id"].tolist()
     distances, indices = entities_inference(data_ids, encoder, nn_model, topic2text, device, batch_size)
 
     # Rank metrics
