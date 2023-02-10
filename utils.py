@@ -1,7 +1,7 @@
 # Utility functions
 import pickle
 from collections import defaultdict
-from typing import Union, Callable, Any
+from typing import Union, Callable, Any, Tuple, Dict, List, Set
 
 import pandas as pd
 import torch
@@ -10,7 +10,7 @@ from neptune.new import Run
 from typehints import FName, StateDict
 
 
-def get_learning_rate_momentum(optimizer: torch.optim.Optimizer) -> tuple[float, Union[float, None]]:
+def get_learning_rate_momentum(optimizer: torch.optim.Optimizer) -> Tuple[float, Union[float, None]]:
     """Get learning rate and momentum for PyTorch optimizer OPTIMIZER."""
     pg_idx = max([idx for idx in range(len(optimizer.param_groups))], key=lambda idx: optimizer.param_groups[idx]["lr"])
     lr = optimizer.param_groups[pg_idx]["lr"]
@@ -49,18 +49,18 @@ def cache(fname: FName, fn: Callable[[], Any], refresh: bool = False) -> Any:
     return x
 
 
-def log_recall_dct(recall_dct: dict[int, float], global_step: int, run: Run, label: str) -> None:
+def log_recall_dct(recall_dct: Dict[int, float], global_step: int, run: Run, label: str) -> None:
     """Log a recall dictionary to neptune.ai"""
     for k, v in recall_dct.items():
         run[f"{label}@{k}"].log(v, step=global_step)
 
 
-def flatten_content_ids(corr_df: pd.DataFrame) -> list[str]:
+def flatten_content_ids(corr_df: pd.DataFrame) -> List[str]:
     """Get flat list of all content ids in the correlation DataFrame."""
     return sorted(list(set([content_id for content_ids in corr_df["content_ids"] for content_id in content_ids.split()])))
 
 
-def get_content_id_gold(corr_df: pd.DataFrame) -> dict[str, set[str]]:
+def get_content_id_gold(corr_df: pd.DataFrame) -> Dict[str, set[str]]:
     """Get dictionary mapping content id to set of correct topic ids."""
     c2gold = defaultdict(set)
     for topic_id, content_ids in zip(corr_df["topic_id"], corr_df["content_ids"]):
@@ -69,7 +69,7 @@ def get_content_id_gold(corr_df: pd.DataFrame) -> dict[str, set[str]]:
     return c2gold
 
 
-def get_topic_id_gold(corr_df: pd.DataFrame) -> dict[str, set[str]]:
+def get_topic_id_gold(corr_df: pd.DataFrame) -> Dict[str, Set[str]]:
     """Get dictionary mapping topic id to set of correct content ids."""
     t2gold = {}
     for topic_id, content_ids in zip(corr_df["topic_id"], corr_df["content_ids"]):
@@ -80,7 +80,7 @@ def get_topic_id_gold(corr_df: pd.DataFrame) -> dict[str, set[str]]:
     return t2gold
 
 
-def is_ordered(data_ids: list[str]) -> bool:
+def is_ordered(data_ids: List[str]) -> bool:
     """Verifies whether DATA_IDS are ordered."""
     if len(data_ids) < 1:
         return True
@@ -91,7 +91,7 @@ def is_ordered(data_ids: list[str]) -> bool:
     return True
 
 
-def are_entity_ids_aligned(entity_ids: list[str], e2i: dict[str, int]) -> bool:
+def are_entity_ids_aligned(entity_ids: List[str], e2i: Dict[str, int]) -> bool:
     """Verifies whether ENTITY_IDS and E2I represent same order of entities."""
     if len(entity_ids) != len(e2i):
         return False

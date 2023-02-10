@@ -32,7 +32,7 @@ class BidirectionalMarginLoss:
 
 
 class UnidirectionalMarginLoss:
-    def __init__(self, device: torch.device, margin=0.0):
+    def __init__(self, device: torch.device, margin: float =0.0):
         """
         Loss function for multiple negatives ranking loss with optional margin.
         :param device: torch device to use

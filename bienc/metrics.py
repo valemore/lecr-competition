@@ -1,8 +1,10 @@
 # Metrics for the Bi-encoder
+from typing import Dict, List, Set
+
 import numpy as np
 
 
-def get_recall_dct(ranks) -> dict[int, float]:
+def get_recall_dct(ranks) -> Dict[int, float]:
     """Get recall dictionary from RANKS given as numpy array of shape (num_examples,)."""
     recall_dct = {
         1: 0.0,
@@ -18,7 +20,7 @@ def get_recall_dct(ranks) -> dict[int, float]:
     return recall_dct
 
 
-def get_min_max_ranks(indices, data_ids: list[str], data2gold: dict[str, set[str]], e2i: dict[str, int]):
+def get_min_max_ranks(indices, data_ids: List[str], data2gold: Dict[str, Set[str]], e2i: Dict[str, int]):
     """
     Get ranks of gold labels in INDICES gathered from predictions and Nearest Neighbor search.
     Returns both the the minimum and maximum rank of gold entities among predicted indices.

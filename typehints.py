@@ -1,6 +1,6 @@
 from pathlib import PurePath
-from typing import Union
+from typing import Dict, Union
 
 FName = Union[str, PurePath]
-StateDict = Union[dict, None]
-MetricDict = dict[int, float]
+StateDict = Union[Dict, None]
+MetricDict = Dict[int, float]

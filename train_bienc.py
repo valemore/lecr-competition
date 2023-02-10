@@ -2,6 +2,7 @@ from datetime import datetime
 from collections import defaultdict
 from pathlib import Path
 import random
+from typing import Dict, List, Set, Tuple
 
 import numpy as np
 import pandas as pd
@@ -63,7 +64,7 @@ def train_one_epoch(model: Biencoder, loss_fn: LossFunction, train_loader: DataL
 
 
 def evaluate(model: Biencoder, loss_fn: LossFunction, val_loader: DataLoader, device: torch.device, global_step: int,
-             run: Run) -> dict[str, float]:
+             run: Run) -> Dict[str, float]:
     """Performs in-batch validation."""
     acc_cumsum = 0.0
     loss_cumsum = 0.0
@@ -104,7 +105,7 @@ def evaluate(model: Biencoder, loss_fn: LossFunction, val_loader: DataLoader, de
 
 
 def evaluate_inference(encoder: BiencoderModule, device: torch.device, batch_size: int, corr_df: pd.DataFrame,
-                       topic2text: dict[str, str], content2text: dict[str, str], e2i: dict[str, int],
+                       topic2text: Dict[str, str], content2text: Dict[str, str], e2i: Dict[str, int],
                        global_step: int, run: Run) -> None:
     """Evaluates inference mode."""
     # Make sure entity idxs align
@@ -146,7 +147,7 @@ def evaluate_inference(encoder: BiencoderModule, device: torch.device, batch_siz
     run[f"val/best_F2"].log(best_fscore, step=global_step)
 
 
-def get_precision_recall_metrics(indices, topic_ids: list[str], e2i: dict[str, int], t2gold: dict[str, set[str]]) -> tuple[MetricDict, MetricDict, MetricDict]:
+def get_precision_recall_metrics(indices, topic_ids: List[str], e2i: Dict[str, int], t2gold: Dict[str, Set[str]]) -> Tuple[MetricDict, MetricDict, MetricDict]:
     i2e = {entity_idx: entity_id for entity_id, entity_idx in e2i.items()}
     tp = np.empty_like(indices, dtype=int) # mask indicating whether prediction is a true positive
     num_gold = np.empty(len(topic_ids), dtype=int) # how many content ids are in gold?
@@ -174,13 +175,13 @@ def get_precision_recall_metrics(indices, topic_ids: list[str], e2i: dict[str, i
     return precision_dct, recall_dct, avg_precision_dct
 
 
-def log_precision_dct(dct: dict[int, float], label: str, global_step: int, run: Run):
+def log_precision_dct(dct: Dict[int, float], label: str, global_step: int, run: Run):
     for k, v in dct.items():
         run[f"{label}@{k}"].log(v, step=global_step)
 
 
 def get_log_rank_metrics(indices,
-                         data_ids: list[str], e2i: dict[str, int], t2gold: dict[str, set[str]],
+                         data_ids: List[str], e2i: Dict[str, int], t2gold: Dict[str, Set[str]],
                          global_step: int, run: Run) -> None:
     """Compare with gold, compute and log rank metrics."""
     min_ranks, max_ranks = get_min_max_ranks(indices, data_ids, t2gold, e2i)

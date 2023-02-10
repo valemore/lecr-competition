@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Dict, Set, List
 
 import pandas as pd
 import torch
@@ -11,7 +12,7 @@ from data.topics import get_topic2text
 from typehints import FName
 
 
-def get_test_topic_ids(fname: FName) -> list[str]:
+def get_test_topic_ids(fname: FName) -> List[str]:
     df = pd.read_csv(fname)
     return sorted(list(set(df["topic_id"])))
 
@@ -28,7 +29,7 @@ def get_biencoder(fname: FName, device: torch.device) -> BiencoderModule:
     return model
 
 
-def get_submission_df(t2preds: dict[str, set[str]]) -> pd.DataFrame:
+def get_submission_df(t2preds: Dict[str, Set[str]]) -> pd.DataFrame:
     def to_str(content_ids):
         return " ".join(sorted(list(content_ids)))
     topic_id_col = sorted(t2preds.keys())

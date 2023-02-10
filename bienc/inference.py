@@ -1,5 +1,5 @@
 # Inference for the Bi-encoder
-from typing import Any
+from typing import Any, Dict, List, Set, Tuple
 
 import cupy as cp
 import torch
@@ -33,7 +33,7 @@ def embed(encoder: BiencoderModule, data_loader: DataLoader, device: torch.devic
     return embs
 
 
-def embed_data(encoder: BiencoderModule, data_ids: list[str], data2text: dict[str, str],
+def embed_data(encoder: BiencoderModule, data_ids: List[str], data2text: Dict[str, str],
                batch_size: int, device: torch.device):
     assert is_ordered(data_ids)
     dset = BiencInferenceDataset(data_ids, data2text, TOPIC_NUM_TOKENS)
@@ -50,7 +50,7 @@ def prepare_nn(embs, num_neighbors: int):
     return nn_model
 
 
-def embed_and_nn(encoder: BiencoderModule, data_ids: list[str], data2text: dict[str, str],
+def embed_and_nn(encoder: BiencoderModule, data_ids: List[str], data2text: Dict[str, str],
                  num_neighbors: int,
                  batch_size: int, device: torch.device):
     """Embeds and prepares nearest neighbors data structure."""
@@ -59,7 +59,7 @@ def embed_and_nn(encoder: BiencoderModule, data_ids: list[str], data2text: dict[
     return nn_model
 
 
-def predict_entities(topic_ids: list[str], distances, indices, thresh, e2i: dict[str, int]) -> dict[str, set[str]]:
+def predict_entities(topic_ids: List[str], distances, indices, thresh, e2i: Dict[str, int]) -> Dict[str, Set[str]]:
     i2e = {entity_idx: entity_id for entity_id, entity_idx in e2i.items()}
     t2preds = {}
     for data_id, dists, idxs in zip(topic_ids, distances, indices):
@@ -69,9 +69,9 @@ def predict_entities(topic_ids: list[str], distances, indices, thresh, e2i: dict
     return t2preds
 
 
-def entities_inference(data_ids: list[str], encoder: BiencoderModule, nn_model: NearestNeighbors,
-                       data2text: dict[str, str],
-                       device: torch.device, batch_size: int) -> tuple[Any, Any]:
+def entities_inference(data_ids: List[str], encoder: BiencoderModule, nn_model: NearestNeighbors,
+                       data2text: Dict[str, str],
+                       device: torch.device, batch_size: int) -> Tuple[Any, Any]:
     """
     Embed data and find their nearest neighbors among entities.
     :param data_ids: data ids for which we are performing inference

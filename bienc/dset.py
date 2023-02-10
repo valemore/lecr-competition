@@ -1,5 +1,6 @@
 # PyTorch datasets for the Bi-encoder
 from collections.abc import Iterable
+from typing import Dict, List
 
 import torch
 from torch.utils.data import Dataset
@@ -8,7 +9,7 @@ from tqdm import tqdm
 from tokenizer import tokenizer
 
 
-def tokenize(text: str, num_tokens: int) -> dict[str, list[int]]:
+def tokenize(text: str, num_tokens: int) -> Dict[str, List[int]]:
     """
     Get input ids and attention mask.
     :param text: text to tokenize
@@ -30,9 +31,9 @@ class BiencDataset(Dataset):
     """Biencoder dataset to be used for training."""
     def __init__(self,
                  topic_ids: Iterable[str], topic_content_ids: Iterable[Iterable[str]],
-                 topic2text: dict[str, str], content2text: dict[str, str],
+                 topic2text: Dict[str, str], content2text: Dict[str, str],
                  topic_num_tokens: int, content_num_tokens: int,
-                 t2i: dict[str, int]):
+                 t2i: Dict[str, int]):
         """
         Training dataset for the bi-encoder embedding content and topic texts into the same space.
         :param topic_ids: iterable over topic ids
@@ -70,7 +71,7 @@ class BiencDataset(Dataset):
 
 class BiencInferenceDataset(Dataset):
     """Biencoder dataset for the topics and contents to be used during inference."""
-    def __init__(self, data_ids: list[str], data2text: dict[str, str], num_tokens: int):
+    def __init__(self, data_ids: List[str], data2text: Dict[str, str], num_tokens: int):
         """
         Inference dataset for the bi-encoder embedding content and topic texts into the same space.
         :param data_ids: list over topic ids or content ids
