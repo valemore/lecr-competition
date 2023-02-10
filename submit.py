@@ -28,9 +28,9 @@ def get_biencoder(fname: FName, device: torch.device) -> BiencoderModule:
     return model
 
 
-def get_submissions_df(t2preds: dict[str, set[str]]) -> pd.DataFrame:
+def get_submission_df(t2preds: dict[str, set[str]]) -> pd.DataFrame:
     def to_str(content_ids):
-        " ".join(sorted(list(content_ids)))
+        return " ".join(sorted(list(content_ids)))
     topic_id_col = sorted(t2preds.keys())
     content_ids_col = [to_str(t2preds[topic_id]) for topic_id in topic_id_col]
     df = pd.DataFrame({"topic_id": topic_id_col, "content_ids": content_ids_col})
@@ -58,4 +58,4 @@ content2text = get_content2text(content_df)
 nn_model = embed_and_nn(encoder, content_ids, content2text, NUM_NEIGHBORS, batch_size, device)
 distances, indices = entities_inference(topic_ids, encoder, nn_model, topic2text, device, batch_size)
 t2preds = predict_entities(topic_ids, distances, indices, THRESH, c2i)
-submission_df = get_submissions_df(t2preds)
+submission_df = get_submission_df(t2preds)
