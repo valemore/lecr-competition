@@ -18,7 +18,7 @@ from utils import flatten_content_ids
 
 def get_test_topic_ids(fname):
     df = pd.read_csv(fname)
-    return sorted(list(set(df["topic_id"])))
+    return df["topic_id"]
 
 
 def get_biencoder(fname, device):

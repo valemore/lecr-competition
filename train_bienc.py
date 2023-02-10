@@ -24,7 +24,7 @@ from bienc.model import Biencoder, BiencoderModule
 from bienc.losses import BidirectionalMarginLoss
 from metrics import get_fscore
 from utils import get_learning_rate_momentum, log_recall_dct, \
-    flatten_content_ids, get_content_id_gold, are_entity_ids_aligned, get_topic_id_gold
+    flatten_content_ids, get_content_id_gold, are_entity_ids_aligned, get_topic_id_gold, sanity_check_inputs
 from bienc.metrics import get_recall_dct, get_min_max_ranks, get_mean_inverse_rank
 
 
@@ -115,7 +115,7 @@ def evaluate_inference(encoder: BiencoderModule, device: torch.device, batch_siz
     nn_model = embed_and_nn(encoder, entity_ids, content2text, NUM_NEIGHBORS, batch_size, device)
 
     # Get nearest neighbor distances and indices
-    data_ids = sorted(list(set(corr_df["topic_id"])))
+    data_ids = corr_df["topic_id"]
     distances, indices = entities_inference(data_ids, encoder, nn_model, topic2text, device, batch_size)
 
     # Rank metrics
@@ -179,13 +179,14 @@ def main(tiny=True,
     corr_df = pd.read_csv(DATA_DIR / "correlations.csv")
     topics_df = pd.read_csv(DATA_DIR / "topics.csv")
     topics_df = topics_df.loc[topics_df["id"].isin(set(corr_df["topic_id"])), :]
+    sanity_check_inputs(content_df, corr_df, topics_df)
 
     if tiny:
         corr_df = corr_df.sample(1000).reset_index(drop=True)
         content_df = content_df.loc[content_df["id"].isin(
             set(flatten_content_ids(corr_df)) | set(content_df["id"].sample(1000))), :].reset_index(drop=True)
 
-    topics_in_scope = sorted(list(set(corr_df["topic_id"])))
+    topics_in_scope = corr_df["topic_id"]
     random.seed(VAL_SPLIT_SEED)
     random.shuffle(topics_in_scope)
 
@@ -195,13 +196,13 @@ def main(tiny=True,
             break
         train_topics = set(topics_in_scope[idx] for idx in topics_in_scope_train_idxs)
         val_topics = set(topics_in_scope[idx] for idx in topics_in_scope_val_idxs)
-        train_corr_df = corr_df.loc[corr_df["topic_id"].isin(train_topics), :].reset_index(drop=True)
-        val_corr_df = corr_df.loc[corr_df["topic_id"].isin(val_topics), :].reset_index(drop=True)
+        train_corr_df = corr_df.loc[corr_df["topic_id"].isin(train_topics), :].sort_values("topic_id").reset_index(drop=True)
+        val_corr_df = corr_df.loc[corr_df["topic_id"].isin(val_topics), :].sort_values("topic_id").reset_index(drop=True)
 
-        train_t2i = {topic: idx for idx, topic in enumerate(sorted(list(set(train_corr_df["topic_id"]))))}
-        val_t2i = {topic: idx for idx, topic in enumerate(sorted(list(set(val_corr_df["topic_id"]))))}
+        train_t2i = {topic: idx for idx, topic in enumerate(train_corr_df["topic_id"])}
+        val_t2i = {topic: idx for idx, topic in enumerate(val_corr_df["topic_id"])}
 
-        c2i = {content_id: content_idx for content_idx, content_id in enumerate(sorted(set(content_df["id"])))}
+        c2i = {content_id: content_idx for content_idx, content_id in enumerate(content_df["id"])}
 
         topic2text = get_topic2text(topics_df)
         content2text = get_content2text(content_df)
