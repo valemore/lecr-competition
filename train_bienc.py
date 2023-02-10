@@ -119,8 +119,8 @@ def evaluate_inference(encoder: BiencoderModule, device: torch.device, batch_siz
     distances, indices = entities_inference(data_ids, encoder, nn_model, topic2text, device, batch_size)
 
     # Rank metrics
-    e2gold = get_topic_id_gold(corr_df)
-    get_log_rank_metrics(indices, data_ids, e2i, e2gold, global_step, run)
+    t2gold = get_topic_id_gold(corr_df)
+    get_log_rank_metrics(indices, data_ids, e2i, t2gold, global_step, run)
 
     # Thresholds
     best_thresh = None
@@ -128,7 +128,7 @@ def evaluate_inference(encoder: BiencoderModule, device: torch.device, batch_siz
     thresh2score = {}
     for thresh in np.arange(0.1, 0.32, 0.04):
         t2preds = predict_entities(data_ids, distances, indices, thresh, e2i)
-        fscore = get_fscore(e2gold, t2preds)
+        fscore = get_fscore(t2gold, t2preds)
         thresh2score[thresh] = fscore
         if fscore > best_fscore:
             best_fscore = fscore
@@ -142,10 +142,10 @@ def evaluate_inference(encoder: BiencoderModule, device: torch.device, batch_siz
 
 
 def get_log_rank_metrics(indices,
-                         data_ids: list[str], e2i: dict[str, int], e2gold: dict[str, set[str]],
+                         data_ids: list[str], t2i: dict[str, int], t2gold: dict[str, set[str]],
                          global_step: int, run: Run) -> None:
     """Compare with gold, compute and log rank metrics."""
-    min_ranks, max_ranks = get_min_max_ranks(indices, data_ids, e2gold, e2i)
+    min_ranks, max_ranks = get_min_max_ranks(indices, data_ids, t2gold, t2i)
     min_mir = get_mean_inverse_rank(min_ranks)
     max_mir = get_mean_inverse_rank(max_ranks)
     min_recall_dct = get_recall_dct(min_ranks)
