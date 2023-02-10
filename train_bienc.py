@@ -120,29 +120,30 @@ def evaluate_inference(encoder: BiencoderModule, device: torch.device, batch_siz
 
     # Rank metrics
     t2gold = get_topic_id_gold(corr_df)
-    # get_log_rank_metrics(indices, data_ids, e2i, t2gold, global_step, run)
+    get_log_rank_metrics(indices, data_ids, e2i, t2gold, global_step, run)
     precision_dct, recall_dct, avg_precision_dct = get_precision_recall_metrics(indices, data_ids, e2i, t2gold)
+    print(f"Mean average precision @ 100: {avg_precision_dct[100]:.5}")
     log_precision_dct(precision_dct, "val/precision", global_step, run)
     log_precision_dct(recall_dct, "val/recall", global_step, run)
     log_precision_dct(avg_precision_dct, "val/avg_precision", global_step, run)
 
     # Thresholds
-    # best_thresh = None
-    # best_fscore = -1.0
-    # thresh2score = {}
-    # for thresh in np.arange(0.1, 0.32, 0.04):
-    #     t2preds = predict_entities(data_ids, distances, indices, thresh, e2i)
-    #     fscore = get_fscore(t2gold, t2preds)
-    #     thresh2score[thresh] = fscore
-    #     if fscore > best_fscore:
-    #         best_fscore = fscore
-    #         best_thresh = thresh
-    #     print(f"validation f2 using threshold {thresh}: {fscore:.5}")
-    #     run[f"val/F2@{thresh}"].log(fscore, step=global_step)
-    # print(f"Best threshold: {best_thresh}")
-    # print(f"Best F2 score: {best_fscore}")
-    # run[f"val/best_thresh"].log(best_thresh, step=global_step)
-    # run[f"val/best_F2"].log(best_fscore, step=global_step)
+    best_thresh = None
+    best_fscore = -1.0
+    thresh2score = {}
+    for thresh in np.arange(0.1, 0.32, 0.04):
+        t2preds = predict_entities(data_ids, distances, indices, thresh, e2i)
+        fscore = get_fscore(t2gold, t2preds)
+        thresh2score[thresh] = fscore
+        if fscore > best_fscore:
+            best_fscore = fscore
+            best_thresh = thresh
+        print(f"validation f2 using threshold {thresh}: {fscore:.5}")
+        run[f"val/F2@{thresh}"].log(fscore, step=global_step)
+    print(f"Best threshold: {best_thresh}")
+    print(f"Best F2 score: {best_fscore}")
+    run[f"val/best_thresh"].log(best_thresh, step=global_step)
+    run[f"val/best_F2"].log(best_fscore, step=global_step)
 
 
 def get_precision_recall_metrics(indices, topic_ids: list[str], e2i: dict[str, int], t2gold: dict[str, set[str]]) -> tuple[MetricDict, MetricDict, MetricDict]:
@@ -199,7 +200,7 @@ def get_log_rank_metrics(indices,
     log_recall_dct(max_recall_dct, global_step, run, "val/max_recall")
 
 
-def main(tiny=True,
+def main(tiny=False,
          batch_size=128,
          max_lr=3e-5,
          weight_decay=0.0,
