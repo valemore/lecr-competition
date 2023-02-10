@@ -178,7 +178,6 @@ def main(tiny=True,
     content_df = pd.read_csv(DATA_DIR / "content.csv")
     corr_df = pd.read_csv(DATA_DIR / "correlations.csv")
     topics_df = pd.read_csv(DATA_DIR / "topics.csv")
-    topics_df = topics_df.loc[topics_df["id"].isin(set(corr_df["topic_id"])), :]
     sanity_check_inputs(content_df, corr_df, topics_df)
 
     if tiny:

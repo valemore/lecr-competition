@@ -92,7 +92,7 @@ def is_ordered(data_ids: list[str]) -> bool:
 
 
 def are_entity_ids_aligned(entity_ids: list[str], e2i: dict[str, int]) -> bool:
-    """Verifies whether TOPIC_IDS and T2I represnt same order of topics."""
+    """Verifies whether ENTITY_IDS and E2I represent same order of entities."""
     if len(entity_ids) != len(e2i):
         return False
     for entity_idx, entity_id in enumerate(entity_ids):
@@ -114,5 +114,5 @@ def sanity_check_inputs(content_df, corr_df, topics_df):
     for topic_id, content_ids in zip(corr_df["topic_id"], corr_df["content_ids"]):
         assert topic_id in topic_ids_set
         assert len(content_ids) > 0
-        for content_id in content_ids:
+        for content_id in content_ids.split():
             assert content_id in content_ids_set
