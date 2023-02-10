@@ -5,7 +5,6 @@ from typing import Union, Callable, Any, Tuple, Dict, List, Set
 
 import pandas as pd
 import torch
-from neptune.new import Run
 
 from typehints import FName, StateDict
 
@@ -49,18 +48,12 @@ def cache(fname: FName, fn: Callable[[], Any], refresh: bool = False) -> Any:
     return x
 
 
-def log_recall_dct(recall_dct: Dict[int, float], global_step: int, run: Run, label: str) -> None:
-    """Log a recall dictionary to neptune.ai"""
-    for k, v in recall_dct.items():
-        run[f"{label}@{k}"].log(v, step=global_step)
-
-
 def flatten_content_ids(corr_df: pd.DataFrame) -> List[str]:
     """Get flat list of all content ids in the correlation DataFrame."""
     return sorted(list(set([content_id for content_ids in corr_df["content_ids"] for content_id in content_ids.split()])))
 
 
-def get_content_id_gold(corr_df: pd.DataFrame) -> Dict[str, set[str]]:
+def get_content_id_gold(corr_df: pd.DataFrame) -> Dict[str, Set[str]]:
     """Get dictionary mapping content id to set of correct topic ids."""
     c2gold = defaultdict(set)
     for topic_id, content_ids in zip(corr_df["topic_id"], corr_df["content_ids"]):

@@ -1,6 +1,5 @@
 # PyTorch datasets for the Bi-encoder
-from collections.abc import Iterable
-from typing import Dict, List
+from typing import Dict, Iterable, List
 
 import torch
 from torch.utils.data import Dataset

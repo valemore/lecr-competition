@@ -26,7 +26,7 @@ from bienc.model import Biencoder, BiencoderModule
 from bienc.losses import BidirectionalMarginLoss
 from metrics import get_fscore
 from typehints import MetricDict
-from utils import get_learning_rate_momentum, log_recall_dct, flatten_content_ids, are_entity_ids_aligned, get_topic_id_gold
+from utils import get_learning_rate_momentum, flatten_content_ids, are_entity_ids_aligned, get_topic_id_gold
 from bienc.metrics import get_recall_dct, get_min_max_ranks, get_mean_inverse_rank
 
 
@@ -184,6 +184,12 @@ def log_precision_dct(dct: Dict[int, float], label: str, global_step: int, run: 
         run[f"{label}@{k}"].log(v, step=global_step)
 
 
+def log_recall_dct(recall_dct: Dict[int, float], global_step: int, run: Run, label: str) -> None:
+    """Log a recall dictionary to neptune.ai"""
+    for k, v in recall_dct.items():
+        run[f"{label}@{k}"].log(v, step=global_step)
+
+
 def get_log_rank_metrics(indices,
                          data_ids: List[str], e2i: Dict[str, int], t2gold: Dict[str, Set[str]],
                          global_step: int, run: Run) -> None:
@@ -205,7 +211,7 @@ def get_log_rank_metrics(indices,
     log_recall_dct(max_recall_dct, global_step, run, "val/max_recall")
 
 
-def main(tiny=True,
+def main(tiny=False,
          batch_size=128,
          max_lr=3e-5,
          weight_decay=0.0,
@@ -213,7 +219,7 @@ def main(tiny=True,
          num_epochs=2,
          use_amp=True,
          experiment_name="full",
-         all_folds=False,
+         folds="no", # "first", "all", "no"
          output_dir="../out"):
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
     output_dir = Path(output_dir)
@@ -231,35 +237,37 @@ def main(tiny=True,
     random.seed(VAL_SPLIT_SEED)
     random.shuffle(topics_in_scope)
 
-    fold_idx = 0
+    fold_idx = 0 if folds != "no" else -1
     for topics_in_scope_train_idxs, topics_in_scope_val_idxs in KFold(n_splits=5).split(topics_in_scope):
-        if not all_folds and fold_idx > 0:
+        if (folds == "first" and fold_idx > 0) or (folds == "no" and fold_idx == 0):
             break
-        train_topics = set(topics_in_scope[idx] for idx in topics_in_scope_train_idxs)
-        val_topics = set(topics_in_scope[idx] for idx in topics_in_scope_val_idxs)
+        if folds != "no":
+            train_topics = set(topics_in_scope[idx] for idx in topics_in_scope_train_idxs)
+        else:
+            train_topics = topics_in_scope
         train_corr_df = corr_df.loc[corr_df["topic_id"].isin(train_topics), :].reset_index(drop=True)
-        val_corr_df = corr_df.loc[corr_df["topic_id"].isin(val_topics), :].reset_index(drop=True)
-
         train_t2i = {topic: idx for idx, topic in enumerate(sorted(list(set(train_corr_df["topic_id"]))))}
-        val_t2i = {topic: idx for idx, topic in enumerate(sorted(list(set(val_corr_df["topic_id"]))))}
 
         c2i = {content_id: content_idx for content_idx, content_id in enumerate(sorted(set(content_df["id"])))}
-
         topic2text = get_topic2text(topics_df)
         content2text = get_content2text(content_df)
 
         train_dset = BiencDataset(train_corr_df["topic_id"], train_corr_df["content_ids"],
                                   topic2text, content2text, TOPIC_NUM_TOKENS, CONTENT_NUM_TOKENS, train_t2i)
-        val_dset = BiencDataset(val_corr_df["topic_id"], val_corr_df["content_ids"],
-                                topic2text, content2text, TOPIC_NUM_TOKENS, CONTENT_NUM_TOKENS, val_t2i)
+        train_loader = DataLoader(train_dset, batch_size=batch_size, num_workers=NUM_WORKERS, shuffle=True)
+
+        if folds != "no":
+            val_topics = set(topics_in_scope[idx] for idx in topics_in_scope_val_idxs)
+            val_corr_df = corr_df.loc[corr_df["topic_id"].isin(val_topics), :].reset_index(drop=True)
+            val_t2i = {topic: idx for idx, topic in enumerate(sorted(list(set(val_corr_df["topic_id"]))))}
+            val_dset = BiencDataset(val_corr_df["topic_id"], val_corr_df["content_ids"],
+                                    topic2text, content2text, TOPIC_NUM_TOKENS, CONTENT_NUM_TOKENS, val_t2i)
+            val_loader = DataLoader(val_dset, batch_size=batch_size, num_workers=NUM_WORKERS, shuffle=False)
 
         model = Biencoder(SCORE_FN).to(device)
         loss_fn = BidirectionalMarginLoss(device, margin)
 
-        train_loader = DataLoader(train_dset, batch_size=batch_size, num_workers=NUM_WORKERS, shuffle=True)
-        val_loader = DataLoader(val_dset, batch_size=batch_size, num_workers=NUM_WORKERS, shuffle=False)
         optim = AdamW(model.parameters(), lr=max_lr, weight_decay=weight_decay)
-
         scaler = GradScaler(enabled=use_amp)
 
         # Prepare logging and saving
@@ -276,14 +284,15 @@ def main(tiny=True,
             global_step = train_one_epoch(model, loss_fn, train_loader, device, optim, None, use_amp, scaler,
                                           global_step, run)
 
-            # Loss and in-batch accuracy for training validation set
-            print(f"Running in-batch evaluation for epoch {epoch}...")
-            evaluate(model, loss_fn, val_loader, device, global_step, run)
+            if folds != "no":
+                # Loss and in-batch accuracy for training validation set
+                print(f"Running in-batch evaluation for epoch {epoch}...")
+                evaluate(model, loss_fn, val_loader, device, global_step, run)
 
-            # Evaluate inference
-            print(f"Running inference-mode evaluation for epoch {epoch}...")
-            evaluate_inference(model.topic_encoder, device, batch_size, val_corr_df, topic2text, content2text, c2i,
-                               global_step, run)
+                # Evaluate inference
+                print(f"Running inference-mode evaluation for epoch {epoch}...")
+                evaluate_inference(model.topic_encoder, device, batch_size, val_corr_df, topic2text, content2text, c2i,
+                                   global_step, run)
 
         # Save artifacts
         (output_dir / f"{experiment_name}_{run_start}" / "bienc").mkdir(parents=True, exist_ok=True)

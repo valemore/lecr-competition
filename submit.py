@@ -46,7 +46,7 @@ def main(data_dir: FName, tokenizer_dir: FName, biencoder_dir: FName, batch_size
 
     content_df = pd.read_csv(data_dir / "content.csv")
     topics_df = pd.read_csv(data_dir / "topics.csv")
-    topic_ids = get_test_topic_ids("../data/sample_submission.csv")
+    topic_ids = get_test_topic_ids(data_dir / "sample_submission.csv")
     content_ids = sorted(list(set(content_df["id"])))
     c2i = {content_id: content_idx for content_idx, content_id in enumerate(content_ids)}
 
