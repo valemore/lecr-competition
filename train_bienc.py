@@ -119,7 +119,8 @@ def evaluate_inference(encoder: BiencoderModule, device: torch.device, batch_siz
 
     # Rank metrics
     t2gold = get_topic_id_gold(corr_df)
-    get_log_rank_metrics(indices, data_ids, e2i, t2gold, global_step, run)
+    min_ranks, max_ranks = get_min_max_ranks(indices, data_ids, t2gold, e2i)
+    get_log_rank_metrics(min_ranks, max_ranks, global_step, run)
 
     # Thresholds
     best_thresh = None
@@ -140,11 +141,9 @@ def evaluate_inference(encoder: BiencoderModule, device: torch.device, batch_siz
     run[f"val/best_F2"].log(best_fscore, step=global_step)
 
 
-def get_log_rank_metrics(indices,
-                         data_ids: list[str], t2i: dict[str, int], t2gold: dict[str, set[str]],
+def get_log_rank_metrics(min_ranks, max_ranks,
                          global_step: int, run: Run) -> None:
-    """Compare with gold, compute and log rank metrics."""
-    min_ranks, max_ranks = get_min_max_ranks(indices, data_ids, t2gold, t2i)
+    """Compute and log rank metrics."""
     min_mir = get_mean_inverse_rank(min_ranks)
     max_mir = get_mean_inverse_rank(max_ranks)
     min_recall_dct = get_recall_dct(min_ranks)
