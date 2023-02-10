@@ -6,6 +6,7 @@ import torch
 
 from bienc.inference import embed_and_nn, entities_inference, predict_entities
 from bienc.model import BiencoderModule
+from bienc.tokenizer import init_tokenizer
 from config import NUM_NEIGHBORS
 from data.content import get_content2text
 from data.topics import get_topic2text
@@ -17,14 +18,9 @@ def get_test_topic_ids(fname: FName) -> List[str]:
     return sorted(list(set(df["topic_id"])))
 
 
-def get_biencoder(fname: FName, device: torch.device) -> BiencoderModule:
-    model = BiencoderModule()
+def get_biencoder(biencoder_dir: FName, device: torch.device) -> BiencoderModule:
+    model = BiencoderModule(biencoder_dir)
     model.to(device)
-    if device.type == "cpu":
-        checkpoint = torch.load(fname, map_location=torch.device("cpu"))
-    else:
-        checkpoint = torch.load(fname)
-    model.load_state_dict(checkpoint)
     model.eval()
     return model
 
@@ -37,17 +33,19 @@ def get_submission_df(t2preds: Dict[str, Set[str]]) -> pd.DataFrame:
     df = pd.DataFrame({"topic_id": topic_id_col, "content_ids": content_ids_col})
     return df
 
+# DATA_DIR = Path("/kaggle/input/learning-equality-curriculum-recommendations")
+# BIENCODER_FNAME = "/kaggle/input/kolibri-model/biencoder.pt"
 
-def main(batch_size):
-    DATA_DIR = Path("/kaggle/input/learning-equality-curriculum-recommendations")
-    BIENCODER_FNAME = "/kaggle/input/kolibri-model/biencoder.pt"
+def main(data_dir: FName, tokenizer_dir: FName, biencoder_dir: FName, batch_size: int):
     THRESH = 0.18
 
+    data_dir = Path(data_dir)
     device = torch.device("cuda")
-    encoder = get_biencoder(BIENCODER_FNAME, device)
+    init_tokenizer(tokenizer_dir)
+    encoder = get_biencoder(biencoder_dir, device)
 
-    content_df = pd.read_csv(DATA_DIR / "content.csv")
-    topics_df = pd.read_csv(DATA_DIR / "topics.csv")
+    content_df = pd.read_csv(data_dir / "content.csv")
+    topics_df = pd.read_csv(data_dir / "topics.csv")
     topic_ids = get_test_topic_ids("../data/sample_submission.csv")
     content_ids = sorted(list(set(content_df["id"])))
     c2i = {content_id: content_idx for content_idx, content_id in enumerate(content_ids)}

@@ -7,3 +7,6 @@ rsync --exclude-from exclude_file.txt -r ~/v/kolibri/kolibri-code/ $SSH_PROFILE:
 
 scp ~/.ssh/vastai $SSH_PROFILE:~/.ssh/
 scp ~/.ssh/vastai.pub $SSH_PROFILE:~/.ssh/
+
+ssh $SSH_PROFILE 'cd ~/kolibri/kolibri-code && bash setup_env.sh'
+ssh $SSH_PROFILE 'cd ~/kolibri/kolibri-code && vastai_cmds.sh'

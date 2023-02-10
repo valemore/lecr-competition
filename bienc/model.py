@@ -7,9 +7,9 @@ from config import BIENC_MODEL_NAME
 
 
 class Biencoder(nn.Module):
-    def __init__(self, score_fn):
+    def __init__(self, score_fn, pretrained_path=None):
         super().__init__()
-        self.content_encoder = BiencoderModule()
+        self.content_encoder = BiencoderModule(pretrained_path)
         self.topic_encoder = self.content_encoder
         self.score_fn = score_fn
 
@@ -20,9 +20,12 @@ class Biencoder(nn.Module):
 
 
 class BiencoderModule(nn.Module):
-    def __init__(self):
+    def __init__(self, pretrained_path=None):
         super().__init__()
-        self.encoder = AutoModel.from_pretrained(BIENC_MODEL_NAME)
+        if pretrained_path:
+            self.encoder =  AutoModel.from_pretrained(pretrained_path)
+        else:
+            self.encoder = AutoModel.from_pretrained(BIENC_MODEL_NAME)
 
     def forward(self, input_ids, attention_mask):
         out = self.encoder(input_ids, attention_mask)

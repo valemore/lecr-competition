@@ -16,6 +16,7 @@ from tqdm import tqdm
 import neptune.new as neptune
 
 from bienc.inference import embed_and_nn, entities_inference, predict_entities
+import bienc.tokenizer as tokenizer
 from bienc.typehints import LossFunction
 from config import DATA_DIR, VAL_SPLIT_SEED, TOPIC_NUM_TOKENS, CONTENT_NUM_TOKENS, SCORE_FN, NUM_WORKERS, NUM_NEIGHBORS
 from data.content import get_content2text
@@ -27,6 +28,9 @@ from metrics import get_fscore
 from typehints import MetricDict
 from utils import get_learning_rate_momentum, log_recall_dct, flatten_content_ids, are_entity_ids_aligned, get_topic_id_gold
 from bienc.metrics import get_recall_dct, get_min_max_ranks, get_mean_inverse_rank
+
+
+tokenizer.init_tokenizer()
 
 
 def train_one_epoch(model: Biencoder, loss_fn: LossFunction, train_loader: DataLoader, device: torch.device,
@@ -201,7 +205,7 @@ def get_log_rank_metrics(indices,
     log_recall_dct(max_recall_dct, global_step, run, "val/max_recall")
 
 
-def main(tiny=False,
+def main(tiny=True,
          batch_size=128,
          max_lr=3e-5,
          weight_decay=0.0,
@@ -209,7 +213,7 @@ def main(tiny=False,
          num_epochs=2,
          use_amp=True,
          experiment_name="full",
-         all_folds=True,
+         all_folds=False,
          output_dir="../out"):
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
     output_dir = Path(output_dir)
@@ -282,8 +286,10 @@ def main(tiny=False,
                                global_step, run)
 
         # Save artifacts
-        output_dir.mkdir(parents=True, exist_ok=True)
-        torch.save(model.topic_encoder.state_dict(), output_dir / f"{experiment_name}_{run_start}.pt")
+        (output_dir / f"{experiment_name}_{run_start}" / "bienc").mkdir(parents=True, exist_ok=True)
+        (output_dir / f"{experiment_name}_{run_start}" / "tokenizer").mkdir(parents=True, exist_ok=True)
+        model.content_encoder.encoder.save_pretrained(output_dir / f"{experiment_name}_{run_start}" / "bienc")
+        tokenizer.tokenizer.save_pretrained(output_dir / f"{experiment_name}_{run_start}" / "tokenizer")
 
         fold_idx += 1
 
