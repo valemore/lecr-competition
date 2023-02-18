@@ -212,14 +212,14 @@ def get_log_rank_metrics(indices,
 
 
 def main(tiny=False,
-         batch_size=128,
+         batch_size=256,
          max_lr=3e-5,
          weight_decay=0.0,
          margin=6.0,
-         num_epochs=2,
+         num_epochs=5,
          use_amp=True,
          experiment_name="full",
-         folds="no", # "first", "all", "no"
+         folds="first", # "first", "all", "no"
          output_dir="../out"):
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
     output_dir = Path(output_dir)
@@ -265,6 +265,7 @@ def main(tiny=False,
             val_loader = DataLoader(val_dset, batch_size=batch_size, num_workers=NUM_WORKERS, shuffle=False)
 
         model = Biencoder(SCORE_FN).to(device)
+        model = torch.nn.DataParallel(model)
         loss_fn = BidirectionalMarginLoss(device, margin)
 
         optim = AdamW(model.parameters(), lr=max_lr, weight_decay=weight_decay)
