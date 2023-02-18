@@ -40,11 +40,12 @@ def train_one_epoch(model: Biencoder, loss_fn: LossFunction, train_loader: DataL
     model.train()
     for batch in tqdm(train_loader):
         batch = tuple(x.to(device) for x in batch)
-        *model_input, topic_idxs = batch
+        *model_input, topic_idxs, content_idxs = batch
         with torch.cuda.amp.autocast(enabled=use_amp):
             scores = model(*model_input)
             mask = torch.full_like(scores, False, dtype=torch.bool)
             mask[topic_idxs.unsqueeze(-1) == topic_idxs.unsqueeze(0)] = True
+            mask[content_idxs.unsqueeze(-1) == content_idxs.unsqueeze(0)] = True
             mask.fill_diagonal_(False)
             loss = loss_fn(scores, mask)
 
@@ -78,11 +79,12 @@ def evaluate(model: Biencoder, loss_fn: LossFunction, val_loader: DataLoader, de
     model.eval()
     for batch in tqdm(val_loader):
         batch = tuple(x.to(device) for x in batch)
-        *model_input, entity_idxs = batch
+        *model_input, topic_idxs, content_idxs = batch
         with torch.no_grad():
             scores = model(*model_input)
             mask = torch.full_like(scores, False, dtype=torch.bool)
-            mask[entity_idxs.unsqueeze(-1) == entity_idxs.unsqueeze(0)] = True
+            mask[topic_idxs.unsqueeze(-1) == topic_idxs.unsqueeze(0)] = True
+            mask[content_idxs.unsqueeze(-1) == content_idxs.unsqueeze(0)] = True
             mask.fill_diagonal_(False)
             loss = loss_fn(scores, mask)
 
@@ -212,7 +214,7 @@ def get_log_rank_metrics(indices,
 
 
 def main(tiny=False,
-         batch_size=256,
+         batch_size=128,
          max_lr=3e-5,
          weight_decay=0.0,
          margin=6.0,
@@ -253,7 +255,7 @@ def main(tiny=False,
         content2text = get_content2text(content_df)
 
         train_dset = BiencDataset(train_corr_df["topic_id"], train_corr_df["content_ids"],
-                                  topic2text, content2text, TOPIC_NUM_TOKENS, CONTENT_NUM_TOKENS, train_t2i)
+                                  topic2text, content2text, TOPIC_NUM_TOKENS, CONTENT_NUM_TOKENS, train_t2i, c2i)
         train_loader = DataLoader(train_dset, batch_size=batch_size, num_workers=NUM_WORKERS, shuffle=True)
 
         if folds != "no":
@@ -261,11 +263,10 @@ def main(tiny=False,
             val_corr_df = corr_df.loc[corr_df["topic_id"].isin(val_topics), :].reset_index(drop=True)
             val_t2i = {topic: idx for idx, topic in enumerate(sorted(list(set(val_corr_df["topic_id"]))))}
             val_dset = BiencDataset(val_corr_df["topic_id"], val_corr_df["content_ids"],
-                                    topic2text, content2text, TOPIC_NUM_TOKENS, CONTENT_NUM_TOKENS, val_t2i)
+                                    topic2text, content2text, TOPIC_NUM_TOKENS, CONTENT_NUM_TOKENS, val_t2i, c2i)
             val_loader = DataLoader(val_dset, batch_size=batch_size, num_workers=NUM_WORKERS, shuffle=False)
 
         model = Biencoder(SCORE_FN).to(device)
-        model = torch.nn.DataParallel(model)
         loss_fn = BidirectionalMarginLoss(device, margin)
 
         optim = AdamW(model.parameters(), lr=max_lr, weight_decay=weight_decay)

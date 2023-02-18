@@ -32,7 +32,7 @@ class BiencDataset(Dataset):
                  topic_ids: Iterable[str], topic_content_ids: Iterable[Iterable[str]],
                  topic2text: Dict[str, str], content2text: Dict[str, str],
                  topic_num_tokens: int, content_num_tokens: int,
-                 t2i: Dict[str, int]):
+                 t2i: Dict[str, int], c2i: Dict[str, int]):
         """
         Training dataset for the bi-encoder embedding content and topic texts into the same space.
         :param topic_ids: iterable over topic ids
@@ -42,6 +42,7 @@ class BiencDataset(Dataset):
         :param topic_num_tokens: how many tokens to use for topic representation
         :param content_num_tokens: how many tokens to use for content representation
         :param t2i: dictionary mapping topic id to index
+        :param c2i: dictionary mapping content id to index
         """
         self.topic_ids = []
         self.content_ids = []
@@ -51,6 +52,8 @@ class BiencDataset(Dataset):
         self.content_num_tokens = content_num_tokens
         self.t2i = t2i
         self.i2t = {idx: topic_id for topic_id, idx in self.t2i.items()}
+        self.c2i = c2i
+        self.i2c = {idx: content_id for content_id, idx in self.c2i.items()}
 
         for topic_id, content_ids, topic_id in tqdm(zip(topic_ids, topic_content_ids, topic_ids)):
             for content_id in content_ids.split():
@@ -62,7 +65,7 @@ class BiencDataset(Dataset):
         content_encoded = tokenize(self.content2text[self.content_ids[idx]], self.content_num_tokens)
         return torch.tensor(topic_encoded["input_ids"]), torch.tensor(topic_encoded["attention_mask"]), \
                torch.tensor(content_encoded["input_ids"]), torch.tensor(content_encoded["attention_mask"]), \
-               self.t2i[self.topic_ids[idx]]
+               self.t2i[self.topic_ids[idx]], self.c2i[self.content_ids[idx]]
 
     def __len__(self):
         return len(self.topic_ids)
