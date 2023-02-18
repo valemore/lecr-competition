@@ -15,7 +15,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 import neptune.new as neptune
 
-from config import CFG, cos_sim, dot_score
+from config import CFG, cos_sim, dot_score, to_config_dct
 from bienc.inference import embed_and_nn, entities_inference, predict_entities
 import bienc.tokenizer as tokenizer
 from bienc.typehints import LossFunction
@@ -268,7 +268,7 @@ def main():
         run = neptune.init_run(
             project="vmorelli/kolibri",
             source_files=["**/*.py", "*.py"])
-        run["parameters"] = CFG.get_log_config_dct()
+        run["parameters"] = to_config_dct(CFG)
         run["fold_idx"] = fold_idx
 
         # Train

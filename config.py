@@ -4,6 +4,12 @@ from pathlib import Path
 from bienc.losses import dot_score, cos_sim
 
 
+def to_config_dct(cfg_class):
+    dct = {k: v for k, v in cfg_class.__dict__.items() if not k.startswith("__")}
+    dct["SCORE_FN"] = dct["SCORE_FN"].__name__
+    return dct
+
+
 class CFG:
     # Config options shared between training and inference
     DATA_DIR = Path("../data")
@@ -34,9 +40,3 @@ class CFG:
     experiment_name = None
     folds = None
     output_dir = None
-
-    @classmethod
-    def get_log_config_dct(cls):
-        dct = {k: v for k, v in cls.__dict__.items() if not k.startswith("__")}
-        dct["SCORE_FN"] = dct["SCORE_FN"].__name__
-        return dct
