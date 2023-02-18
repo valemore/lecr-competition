@@ -3,31 +3,34 @@ from pathlib import Path
 
 from bienc.losses import dot_score, cos_sim
 
-DATA_DIR = Path("../data")
 
-# Validation set size and training seed
-VAL_SPLIT_SEED = 623
+class CFG:
+    # Config options shared between training and inference
+    DATA_DIR = Path("../data")
 
-# Bi-Encoder
-BIENC_MODEL_NAME = "bert-base-multilingual-uncased"
+    # Validation set size and training seed
+    VAL_SPLIT_SEED = 623
 
-TOPIC_NUM_TOKENS = 128
-CONTENT_NUM_TOKENS = 128
+    # Bi-Encoder
+    BIENC_MODEL_NAME = "bert-base-multilingual-uncased"
 
-SCORE_FN = cos_sim
+    TOPIC_NUM_TOKENS = 128
+    CONTENT_NUM_TOKENS = 128
 
-NUM_WORKERS = 24
+    SCORE_FN = cos_sim
 
-NUM_NEIGHBORS = 100
+    NUM_WORKERS = 24
 
-# Train arguments
-tiny = None
-batch_size = None
-max_lr = None
-weight_decay = None
-margin = None
-num_epochs = None
-use_fp = None
-experiment_name = None
-folds = None
-output_dir = None
+    NUM_NEIGHBORS = 100
+
+    # Config options only needed during training
+    tiny = None
+    batch_size = None
+    max_lr = None
+    weight_decay = None
+    margin = None
+    num_epochs = None
+    use_fp = None
+    experiment_name = None
+    folds = None
+    output_dir = None

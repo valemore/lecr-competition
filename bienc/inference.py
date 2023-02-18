@@ -9,7 +9,7 @@ from tqdm import tqdm
 
 from bienc.dset import BiencInferenceDataset
 from bienc.model import BiencoderModule
-import config
+from config import CFG
 from utils import is_ordered
 
 
@@ -36,8 +36,8 @@ def embed(encoder: BiencoderModule, data_loader: DataLoader, device: torch.devic
 def embed_data(encoder: BiencoderModule, data_ids: List[str], data2text: Dict[str, str],
                batch_size: int, device: torch.device):
     assert is_ordered(data_ids)
-    dset = BiencInferenceDataset(data_ids, data2text, config.TOPIC_NUM_TOKENS)
-    loader = DataLoader(dset, batch_size=batch_size, num_workers=config.NUM_WORKERS, shuffle=False)
+    dset = BiencInferenceDataset(data_ids, data2text, CFG.TOPIC_NUM_TOKENS)
+    loader = DataLoader(dset, batch_size=batch_size, num_workers=CFG.NUM_WORKERS, shuffle=False)
     print("Preparing Bi-encoder inference dataset containing entity embeddings...")
     embs = embed(encoder, loader, device)
     return embs
@@ -82,8 +82,8 @@ def entities_inference(data_ids: List[str], encoder: BiencoderModule, nn_model: 
     :param batch_size: batch size to use
     :return: distances, indices: both are numpy arrays of shape (num_examples, num_neighbors)
     """
-    dset = BiencInferenceDataset(data_ids, data2text, config.CONTENT_NUM_TOKENS)
-    loader = DataLoader(dset, batch_size=batch_size, num_workers=config.NUM_WORKERS, shuffle=False)
+    dset = BiencInferenceDataset(data_ids, data2text, CFG.CONTENT_NUM_TOKENS)
+    loader = DataLoader(dset, batch_size=batch_size, num_workers=CFG.NUM_WORKERS, shuffle=False)
     embs = embed(encoder, loader, device)
     embs = cp.array(embs)
     distances, indices = nn_model.kneighbors(embs, return_distance=True)

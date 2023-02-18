@@ -3,7 +3,7 @@ import torch
 import torch.nn as nn
 from transformers import AutoModel
 
-import config
+from config import CFG
 
 
 class Biencoder(nn.Module):
@@ -25,7 +25,7 @@ class BiencoderModule(nn.Module):
         if pretrained_path:
             self.encoder =  AutoModel.from_pretrained(pretrained_path)
         else:
-            self.encoder = AutoModel.from_pretrained(config.BIENC_MODEL_NAME)
+            self.encoder = AutoModel.from_pretrained(CFG.BIENC_MODEL_NAME)
 
     def forward(self, input_ids, attention_mask):
         out = self.encoder(input_ids, attention_mask)
