@@ -17,8 +17,8 @@ def build_text(title: str, description: str, text: str) -> str:
         full_text += title + ". "
     if not pd.isnull(description):
         full_text += description + ". "
-    # if not pd.isnull(text):
-    #     full_text += text + ". "
+    if not pd.isnull(text):
+        full_text += text + ". "
     return full_text
 
 
