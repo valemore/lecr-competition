@@ -34,3 +34,9 @@ class CFG:
     experiment_name = None
     folds = None
     output_dir = None
+
+    @classmethod
+    def get_log_config_dct(cls):
+        dct = {k: v for k, v in cls.__dict__.items() if not k.startswith("__")}
+        dct["SCORE_FN"] = dct["SCORE_FN"].__name__
+        return dct

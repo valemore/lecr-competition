@@ -267,8 +267,9 @@ def main():
         run_start = datetime.utcnow().strftime("%m%d-%H%M%S")
         run = neptune.init_run(
             project="vmorelli/kolibri",
-            source_files=["src/**/*.py", "src/*.py"],
-            tags=[CFG.experiment_name] + [f"fold{fold_idx}"] + (["TINY"] if CFG.tiny else []))
+            source_files=["**/*.py", "*.py"])
+        run["parameters"] = CFG.get_log_config_dct()
+        run["fold_idx"] = fold_idx
 
         # Train
         global_step = 0
