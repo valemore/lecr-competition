@@ -18,8 +18,8 @@ def build_text(topic_id: str, topic2title: Dict[str, str], topic2description: Di
     while topic_id is not None:
         text += topic2title[topic_id] + ". "
         topic_id = topic2parent[topic_id]
-    # if description:
-    #     text += description
+    if description:
+        text += description
     return text
 
 
