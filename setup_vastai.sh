@@ -8,5 +8,7 @@ rsync --exclude-from exclude_file.txt -r ~/v/kolibri/kolibri-code/ $SSH_PROFILE:
 scp ~/.ssh/vastai $SSH_PROFILE:~/.ssh/
 scp ~/.ssh/vastai.pub $SSH_PROFILE:~/.ssh/
 
-#ssh $SSH_PROFILE 'cd ~/kolibri/kolibri-code && bash setup_env.sh'
-#ssh $SSH_PROFILE 'cd ~/kolibri/kolibri-code && bash vastai_cmds.sh'
+ssh vastai1 'tmux new -d -s sesh'
+ssh vastai1 'tmux send-keys -t sesh.0 "cd ~/kolibri/kolibri-code && bash setup_env.sh" ENTER'
+ssh vastai1 'tmux send-keys -t sesh.0 "cd ~/kolibri/kolibri-code && bash vastai_cmds.sh" ENTER'
+ssh vastai1 'tmux kill-session -t sesh'
