@@ -19,3 +19,15 @@ SCORE_FN = cos_sim
 NUM_WORKERS = 24
 
 NUM_NEIGHBORS = 100
+
+# Train arguments
+tiny = None
+batch_size = None
+max_lr = None
+weight_decay = None
+margin = None
+num_epochs = None
+use_fp = None
+experiment_name = None
+folds = None
+output_dir = None

@@ -1,5 +1,5 @@
+from argparse import ArgumentParser
 from datetime import datetime
-from collections import defaultdict
 from pathlib import Path
 import random
 from typing import Dict, List, Set, Tuple
@@ -15,10 +15,10 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 import neptune.new as neptune
 
+import config
 from bienc.inference import embed_and_nn, entities_inference, predict_entities
 import bienc.tokenizer as tokenizer
 from bienc.typehints import LossFunction
-from config import DATA_DIR, VAL_SPLIT_SEED, TOPIC_NUM_TOKENS, CONTENT_NUM_TOKENS, SCORE_FN, NUM_WORKERS, NUM_NEIGHBORS
 from data.content import get_content2text
 from bienc.dset import BiencDataset
 from data.topics import get_topic2text
@@ -119,7 +119,7 @@ def evaluate_inference(encoder: BiencoderModule, device: torch.device, batch_siz
     assert are_entity_ids_aligned(entity_ids, e2i)
 
     # Prepare nearest neighbors data structure for entities
-    nn_model = embed_and_nn(encoder, entity_ids, content2text, NUM_NEIGHBORS, batch_size, device)
+    nn_model = embed_and_nn(encoder, entity_ids, content2text, config.NUM_NEIGHBORS, batch_size, device)
 
     # Get nearest neighbor distances and indices
     data_ids = sorted(list(set(corr_df["topic_id"])))
@@ -162,14 +162,14 @@ def get_precision_recall_metrics(indices, topic_ids: List[str], e2i: Dict[str, i
         tp[i, :] = np.array([int(i2e[idx] in gold) for idx in idxs], dtype=int)
         num_gold[i] = len(gold)
 
-    precision_dct = {num_cands: 0.0 for num_cands in range(1, NUM_NEIGHBORS + 1)}
-    recall_dct = {num_cands: 0.0 for num_cands in range(1, NUM_NEIGHBORS + 1)}
-    avg_precision_dct = {num_cands: 0.0 for num_cands in range(1, NUM_NEIGHBORS + 1)}
+    precision_dct = {num_cands: 0.0 for num_cands in range(1, config.NUM_NEIGHBORS + 1)}
+    recall_dct = {num_cands: 0.0 for num_cands in range(1, config.NUM_NEIGHBORS + 1)}
+    avg_precision_dct = {num_cands: 0.0 for num_cands in range(1, config.NUM_NEIGHBORS + 1)}
 
     acc_tp = np.zeros(len(topic_ids), dtype=float) # accumulating true positives for all topic ids
     acc_avg_prec = np.zeros(len(topic_ids), dtype=float) # accumulating average precisino for all topic ids
     prev_rec = np.zeros(len(topic_ids), dtype=float) # previous recall
-    for j, num_cands in enumerate(range(1, NUM_NEIGHBORS + 1)):
+    for j, num_cands in enumerate(range(1, config.NUM_NEIGHBORS + 1)):
         acc_tp += tp[:, j]
         prec = acc_tp / num_cands
         rec = acc_tp / num_gold
@@ -213,37 +213,28 @@ def get_log_rank_metrics(indices,
     log_recall_dct(max_recall_dct, global_step, run, "val/max_recall")
 
 
-def main(tiny=False,
-         batch_size=128,
-         max_lr=3e-5,
-         weight_decay=0.0,
-         margin=6.0,
-         num_epochs=5,
-         use_amp=True,
-         experiment_name="full",
-         folds="first", # "first", "all", "no"
-         output_dir="../out"):
+def main():
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
-    output_dir = Path(output_dir)
+    output_dir = Path(config.output_dir)
 
-    content_df = pd.read_csv(DATA_DIR / "content.csv")
-    corr_df = pd.read_csv(DATA_DIR / "correlations.csv")
-    topics_df = pd.read_csv(DATA_DIR / "topics.csv")
+    content_df = pd.read_csv(config.DATA_DIR / "content.csv")
+    corr_df = pd.read_csv(config.DATA_DIR / "correlations.csv")
+    topics_df = pd.read_csv(config.DATA_DIR / "topics.csv")
 
-    if tiny:
+    if config.tiny:
         corr_df = corr_df.sample(1000).reset_index(drop=True)
         content_df = content_df.loc[content_df["id"].isin(
             set(flatten_content_ids(corr_df)) | set(content_df["id"].sample(1000))), :].reset_index(drop=True)
 
     topics_in_scope = sorted(list(set(corr_df["topic_id"])))
-    random.seed(VAL_SPLIT_SEED)
+    random.seed(config.VAL_SPLIT_SEED)
     random.shuffle(topics_in_scope)
 
-    fold_idx = 0 if folds != "no" else -1
+    fold_idx = 0 if config.folds != "no" else -1
     for topics_in_scope_train_idxs, topics_in_scope_val_idxs in KFold(n_splits=5).split(topics_in_scope):
-        if (folds == "first" and fold_idx > 0) or (folds == "no" and fold_idx == 0):
+        if (config.folds == "first" and fold_idx > 0) or (config.folds == "no" and fold_idx == 0):
             break
-        if folds != "no":
+        if config.folds != "no":
             train_topics = set(topics_in_scope[idx] for idx in topics_in_scope_train_idxs)
         else:
             train_topics = topics_in_scope
@@ -255,55 +246,110 @@ def main(tiny=False,
         content2text = get_content2text(content_df)
 
         train_dset = BiencDataset(train_corr_df["topic_id"], train_corr_df["content_ids"],
-                                  topic2text, content2text, TOPIC_NUM_TOKENS, CONTENT_NUM_TOKENS, train_t2i, c2i)
-        train_loader = DataLoader(train_dset, batch_size=batch_size, num_workers=NUM_WORKERS, shuffle=True)
+                                  topic2text, content2text, config.TOPIC_NUM_TOKENS, config.CONTENT_NUM_TOKENS, train_t2i, c2i)
+        train_loader = DataLoader(train_dset, batch_size=config.batch_size, num_workers=config.NUM_WORKERS, shuffle=True)
 
-        if folds != "no":
+        if config.folds != "no":
             val_topics = set(topics_in_scope[idx] for idx in topics_in_scope_val_idxs)
             val_corr_df = corr_df.loc[corr_df["topic_id"].isin(val_topics), :].reset_index(drop=True)
             val_t2i = {topic: idx for idx, topic in enumerate(sorted(list(set(val_corr_df["topic_id"]))))}
             val_dset = BiencDataset(val_corr_df["topic_id"], val_corr_df["content_ids"],
-                                    topic2text, content2text, TOPIC_NUM_TOKENS, CONTENT_NUM_TOKENS, val_t2i, c2i)
-            val_loader = DataLoader(val_dset, batch_size=batch_size, num_workers=NUM_WORKERS, shuffle=False)
+                                    topic2text, content2text, config.TOPIC_NUM_TOKENS, config.CONTENT_NUM_TOKENS, val_t2i, c2i)
+            val_loader = DataLoader(val_dset, batch_size=config.batch_size, num_workers=config.NUM_WORKERS, shuffle=False)
 
-        model = Biencoder(SCORE_FN).to(device)
-        loss_fn = BidirectionalMarginLoss(device, margin)
+        model = Biencoder(config.SCORE_FN).to(device)
+        loss_fn = BidirectionalMarginLoss(device, config.margin)
 
-        optim = AdamW(model.parameters(), lr=max_lr, weight_decay=weight_decay)
-        scaler = GradScaler(enabled=use_amp)
+        optim = AdamW(model.parameters(), lr=config.max_lr, weight_decay=config.weight_decay)
+        scaler = GradScaler(enabled=not config.use_fp)
 
         # Prepare logging and saving
         run_start = datetime.utcnow().strftime("%m%d-%H%M%S")
         run = neptune.init_run(
             project="vmorelli/kolibri",
             source_files=["src/**/*.py", "src/*.py"],
-            tags=[experiment_name] + [f"fold{fold_idx}"] + (["TINY"] if tiny else []))
+            tags=[config.experiment_name] + [f"fold{fold_idx}"] + (["TINY"] if config.tiny else []))
 
         # Train
         global_step = 0
-        for epoch in tqdm(range(num_epochs)):
+        for epoch in tqdm(range(config.num_epochs)):
             print(f"Training epoch {epoch}...")
-            global_step = train_one_epoch(model, loss_fn, train_loader, device, optim, None, use_amp, scaler,
+            global_step = train_one_epoch(model, loss_fn, train_loader, device, optim, None, not config.use_fp, scaler,
                                           global_step, run)
 
-            if folds != "no":
+            if config.folds != "no":
                 # Loss and in-batch accuracy for training validation set
                 print(f"Running in-batch evaluation for epoch {epoch}...")
                 evaluate(model, loss_fn, val_loader, device, global_step, run)
 
                 # Evaluate inference
                 print(f"Running inference-mode evaluation for epoch {epoch}...")
-                evaluate_inference(model.topic_encoder, device, batch_size, val_corr_df, topic2text, content2text, c2i,
+                evaluate_inference(model.topic_encoder, device, config.batch_size,
+                                   val_corr_df, topic2text, content2text, c2i,
                                    global_step, run)
 
         # Save artifacts
-        (output_dir / f"{experiment_name}_{run_start}" / "bienc").mkdir(parents=True, exist_ok=True)
-        (output_dir / f"{experiment_name}_{run_start}" / "tokenizer").mkdir(parents=True, exist_ok=True)
-        model.content_encoder.encoder.save_pretrained(output_dir / f"{experiment_name}_{run_start}" / "bienc")
-        tokenizer.tokenizer.save_pretrained(output_dir / f"{experiment_name}_{run_start}" / "tokenizer")
+        (output_dir / f"{config.experiment_name}_{run_start}" / "bienc").mkdir(parents=True, exist_ok=True)
+        (output_dir / f"{config.experiment_name}_{run_start}" / "tokenizer").mkdir(parents=True, exist_ok=True)
+        model.content_encoder.encoder.save_pretrained(output_dir / f"{config.experiment_name}_{run_start}" / "bienc")
+        tokenizer.tokenizer.save_pretrained(output_dir / f"{config.experiment_name}_{run_start}" / "tokenizer")
 
         fold_idx += 1
 
 
 if __name__ == "__main__":
+    parser = ArgumentParser()
+    parser.add_argument("--tiny", action="store_true")
+    parser.add_argument("--batch_size", type=int, default=128)
+    parser.add_argument("--max_lr", type=float, default=3e-5)
+    parser.add_argument("--weight_decay", type=float, default=0.0)
+    parser.add_argument("--margin", type=float, default=6.0)
+    parser.add_argument("--num_epochs", type=int, default=5)
+    parser.add_argument("--use_fp", action="store_true")
+    parser.add_argument("--experiment_name", type=str, required=True)
+    parser.add_argument("--folds", type=str, choices=["first", "all", "no"], default="first")
+    parser.add_argument("--output_dir", type=str, default="../out")
+
+    parser.add_argument("--data_dir", type=str)
+    parser.add_argument("--val_split_seed", type=int)
+    parser.add_argument("--bienc_model_name", type=str)
+    parser.add_argument("--topic_num_tokens", type=int)
+    parser.add_argument("--content_num_tokens", type=int)
+    parser.add_argument("--score_fn",choices=["cos_sim", "dot_score"], type=str)
+    parser.add_argument("--num_workers", type=int)
+    parser.add_argument("--num_neighbors", type=int)
+
+    args = parser.parse_args()
+
+    config.tiny = args.tiny
+    config.batch_size = args.batch_size
+    config.max_lr = args.max_lr
+    config.weight_decay = args.weight_decay
+    config.margin = args.margin
+    config.num_epochs = args.num_epochs
+    config.use_fp = args.use_fp
+    config.experiment_name = args.experiment_name
+    config.folds = args.folds
+    config.output_dir = args.output_dir
+
+    if args.data_dir is not None:
+        config.DATA_DIR = Path(args.data_dir)
+    if args.val_split_seed is not None:
+        config.VAL_SPLIT_SEED = args.val_split_seed
+    if args.bienc_model_name is not None:
+        config.BIENC_MODEL_NAME = args.bienc_model_name
+    if args.topic_num_tokens is not None:
+        config.TOPIC_NUM_TOKENS = args.topic_num_tokens
+    if args.content_num_tokens is not None:
+        config.CONTENT_NUM_TOKENS = args.content_num_tokens
+    if args.score_fn is not None:
+        if args.score_fn == "cos_sim":
+            config.SCORE_FN = config.cos_sim
+        else:
+            config.SCORE_FN = config.dot_score
+    if args.num_workers is not None:
+        config.NUM_WORKERS = args.num_workers
+    if args.num_neighbors is not None:
+        config.NUM_NEIGHBORS = args.num_neighbors
+
     main()
