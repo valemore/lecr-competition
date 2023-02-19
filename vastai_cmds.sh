@@ -1,5 +1,6 @@
 #!/bin/sh
-cd ~/kolibri
+BASE_DIR='~/kolibri'
+cd $BASE_DIR
 apt install unzip
 pip install kaggle
 mkdir -p data
