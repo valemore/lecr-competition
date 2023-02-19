@@ -55,7 +55,7 @@ class BiencDataset(Dataset):
         self.c2i = c2i
         self.i2c = {idx: content_id for content_id, idx in self.c2i.items()}
 
-        for topic_id, content_ids, topic_id in tqdm(zip(topic_ids, topic_content_ids, topic_ids)):
+        for topic_id, content_ids in tqdm(zip(topic_ids, topic_content_ids)):
             for content_id in content_ids.split():
                 self.topic_ids.append(topic_id)
                 self.content_ids.append(content_id)
