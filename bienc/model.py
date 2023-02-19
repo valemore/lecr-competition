@@ -9,14 +9,14 @@ from config import CFG
 class Biencoder(nn.Module):
     def __init__(self, score_fn, pretrained_path=None):
         super().__init__()
-        self.content_encoder = BiencoderModule(pretrained_path)
-        self.topic_encoder = self.content_encoder
+        self.topic_encoder = BiencoderModule(pretrained_path)
+        self.content_encoder = self.topic_encoder
         self.score_fn = score_fn
 
-    def forward(self, content_input_ids, content_attention_mask, topic_input_ids, topic_attention_mask):
-        content_emb = self.content_encoder(content_input_ids, content_attention_mask)
+    def forward(self, topic_input_ids, topic_attention_mask, content_input_ids, content_attention_mask):
         topic_emb = self.topic_encoder(topic_input_ids, topic_attention_mask)
-        return self.score_fn(content_emb, topic_emb)
+        content_emb = self.content_encoder(content_input_ids, content_attention_mask)
+        return self.score_fn(topic_emb, content_emb)
 
 
 class BiencoderModule(nn.Module):

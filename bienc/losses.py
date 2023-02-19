@@ -57,12 +57,12 @@ class UnidirectionalMarginLoss:
         return loss
 
 
-def dot_score(content_emb, topic_emb):
+def dot_score(topic_emb, content_emb):
     """Computes matrix of dot product scores between CONTENT_EMB and TOPIC_EMB."""
     return content_emb.mm(topic_emb.t())
 
 
-def cos_sim(content_emb, topic_emb):
+def cos_sim(topic_emb, content_emb):
     """Computes matrix of scaled cosine similarities between CONTENT_EMB and TOPIC_EMB. Scaling factor is 20."""
     # Scaling factor is chosen to make things easier for the subsequent softmax
-    return F.cosine_similarity(content_emb.unsqueeze(-1), topic_emb.t().unsqueeze(0), dim=1) * 20
+    return F.cosine_similarity(topic_emb.t().unsqueeze(0), content_emb.unsqueeze(-1), dim=1) * 20 # TODO: ???
