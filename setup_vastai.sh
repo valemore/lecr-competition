@@ -1,6 +1,6 @@
 #!/bin/sh
 SSH_PROFILE=$1
-BASE_DIR='~/kolibri'
+BASE_DIR='/root/kolibri'
 CODE_DIR="$BASE_DIR/kolibri-code"
 
 ssh $SSH_PROFILE 'mkdir -p .kaggle'
@@ -12,6 +12,6 @@ scp ~/.ssh/vastai $SSH_PROFILE:~/.ssh/
 scp ~/.ssh/vastai.pub $SSH_PROFILE:~/.ssh/
 
 ssh $SSH_PROFILE 'tmux new -d -s sesh'
-ssh $SSH_PROFILE 'tmux send-keys -t sesh.0 '"cd $CODE_DIR && bash setup_env.sh"' ENTER'
-ssh $SSH_PROFILE 'tmux send-keys -t sesh.0 '"cd $CODE_DIR && bash vastai_cmds.sh"' ENTER'
+ssh $SSH_PROFILE 'tmux send-keys -t sesh.0 '"'cd $CODE_DIR && bash setup_env.sh'" ENTER''
+ssh $SSH_PROFILE 'tmux send-keys -t sesh.0 '"'cd $BASE_DIR && bash vastai_cmds.sh'" ENTER''
 ssh $SSH_PROFILE 'tmux kill-session -t sesh'
