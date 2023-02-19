@@ -6,6 +6,7 @@ from bienc.losses import dot_score, cos_sim
 
 def to_config_dct(cfg_class):
     dct = {k: v for k, v in cfg_class.__dict__.items() if not k.startswith("__")}
+    dct["DATA_DIR"] = str(dct["DATA_DIR"])
     dct["SCORE_FN"] = dct["SCORE_FN"].__name__
     return dct
 
