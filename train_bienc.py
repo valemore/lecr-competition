@@ -138,7 +138,7 @@ def evaluate_inference(encoder: BiencoderModule, device: torch.device, batch_siz
     best_thresh = None
     best_fscore = -1.0
     thresh2score = {}
-    for thresh in np.arange(0.1, 0.32, 0.04):
+    for thresh in np.arange(0.1, 0.52, 0.02):
         t2preds = predict_entities(data_ids, distances, indices, thresh, e2i)
         fscore = get_fscore(t2gold, t2preds)
         thresh2score[thresh] = fscore
