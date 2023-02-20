@@ -11,6 +11,10 @@ def to_config_dct(cfg_class):
     return dct
 
 
+# class GLB:
+#     device = None
+
+
 class CFG:
     # Config options shared between training and inference
     DATA_DIR = Path("../data")
@@ -31,7 +35,9 @@ class CFG:
     NUM_NEIGHBORS = 100
 
     # Cross-Encoder
-    CROSSENC_MODEL_NAME = "bert-base-multilingual-uncased"
+    CROSS_MODEL_NAME = "bert-base-multilingual-uncased"
+    CROSS_CORR_FNAME = "cross_corr.csv"
+    CROSS_NUM_TOKENS = 256
 
     # Config options only needed during training
     tiny = None
@@ -40,7 +46,7 @@ class CFG:
     weight_decay = None
     margin = None
     num_epochs = None
-    use_fp = None
+    use_amp = None
     experiment_name = None
     folds = None
     output_dir = None
