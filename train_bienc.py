@@ -293,7 +293,7 @@ def main():
         (output_dir / f"{CFG.experiment_name}_{run_start}" / "bienc").mkdir(parents=True, exist_ok=True)
         (output_dir / f"{CFG.experiment_name}_{run_start}" / "tokenizer").mkdir(parents=True, exist_ok=True)
         model.content_encoder.encoder.save_pretrained(output_dir / f"{CFG.experiment_name}_{run_start}" / "bienc")
-        tokenizer.tokenizer.save_pretrained(output_dir / f"{CFG.experiment_name}_{run_start}" / "tokenizer")
+        tokenizer.tokenizer.save_pretrained(output_dir / f"{CFG.experiment_name}_{run_start}" / "bienc_tokenizer")
 
         fold_idx += 1
 
@@ -304,7 +304,7 @@ if __name__ == "__main__":
     parser.add_argument("--batch_size", type=int, default=128)
     parser.add_argument("--max_lr", type=float, default=3e-5)
     parser.add_argument("--weight_decay", type=float, default=0.0)
-    parser.add_argument("--margin", type=float, default=6.0)
+    parser.add_argument("--margin", type=float, default=0.0)
     parser.add_argument("--num_epochs", type=int, default=5)
     parser.add_argument("--use_fp", action="store_true")
     parser.add_argument("--experiment_name", type=str, required=True)

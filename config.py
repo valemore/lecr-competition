@@ -30,6 +30,9 @@ class CFG:
 
     NUM_NEIGHBORS = 100
 
+    # Cross-Encoder
+    CROSSENC_MODEL_NAME = "bert-base-multilingual-uncased"
+
     # Config options only needed during training
     tiny = None
     batch_size = None

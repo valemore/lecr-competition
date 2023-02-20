@@ -1,4 +1,4 @@
-# Biencoder tokenizer
+# Crossencoder tkenizer
 from typing import Dict, List
 
 from transformers import PreTrainedTokenizer, AutoTokenizer
@@ -11,17 +11,17 @@ def init_tokenizer(pretrained_path=None):
     if pretrained_path:
         tokenizer = AutoTokenizer.from_pretrained(pretrained_path, use_fast=True)
     else:
-        tokenizer = AutoTokenizer.from_pretrained(CFG.BIENC_MODEL_NAME, use_fast=True)
+        tokenizer = AutoTokenizer.from_pretrained(CFG.CROSSENC_MODEL_NAME, use_fast=True)
 
 
-def tokenize(text: str, num_tokens: int) -> Dict[str, List[int]]:
+def tokenize(topic_text: str, content_text, num_tokens: int) -> Dict[str, List[int]]:
     """
     Get input ids and attention mask.
-    :param text: text to tokenize
+    :param topic_text: text to tokenize
     :param num_tokens: truncate and pad to this many tokens
     :return: dict with input ids and attention mask
     """
-    enc = tokenizer(text,
+    enc = tokenizer(topic_text, content_text,
                     max_length=num_tokens,
                     truncation="only_first",
                     padding="max_length",

@@ -5,25 +5,7 @@ import torch
 from torch.utils.data import Dataset
 from tqdm import tqdm
 
-import bienc.tokenizer as tokenizer
-
-
-def tokenize(text: str, num_tokens: int) -> Dict[str, List[int]]:
-    """
-    Get input ids and attention mask.
-    :param text: text to tokenize
-    :param num_tokens: truncate and pad to this many tokens
-    :return: dict with input ids and attention mask
-    """
-    enc = tokenizer.tokenizer(text,
-                              max_length=num_tokens,
-                              truncation="only_first",
-                              padding="max_length",
-                              add_special_tokens=True,
-                              return_overflowing_tokens=False,
-                              return_offsets_mapping=False)
-
-    return {"input_ids": enc.input_ids, "attention_mask": enc.attention_mask}
+from bienc.tokenizer import tokenize
 
 
 class BiencDataset(Dataset):
