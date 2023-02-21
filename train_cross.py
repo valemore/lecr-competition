@@ -104,7 +104,7 @@ def main():
     output_dir = Path(CFG.output_dir)
 
     content_df = pd.read_csv(CFG.DATA_DIR / "content.csv")
-    corr_df = pd.read_csv(CFG.DATA_DIR / CFG.CROSS_CORR_FNAME)
+    corr_df = pd.read_csv(CFG.CROSS_CORR_FNAME, keep_default_na=False)
     topics_df = pd.read_csv(CFG.DATA_DIR / "topics.csv")
 
     if CFG.tiny:
@@ -187,6 +187,7 @@ if __name__ == "__main__":
     parser.add_argument("--num_epochs", type=int, default=5)
     parser.add_argument("--use_fp", action="store_true")
     parser.add_argument("--experiment_name", type=str, required=True)
+    parser.add_argument("--df", type=str, required=True)
     parser.add_argument("--folds", type=str, choices=["first", "all", "no"], default="first")
     parser.add_argument("--output_dir", type=str, default="../out")
 
@@ -205,6 +206,7 @@ if __name__ == "__main__":
     CFG.num_epochs = args.num_epochs
     CFG.use_amp = not args.use_fp
     CFG.experiment_name = args.experiment_name
+    CFG.CROSS_CORR_FNAME = args.df
     CFG.folds = args.folds
     CFG.output_dir = args.output_dir
 

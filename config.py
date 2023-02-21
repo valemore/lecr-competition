@@ -37,7 +37,7 @@ class CFG:
 
     # Cross-Encoder
     CROSS_MODEL_NAME = "bert-base-multilingual-uncased"
-    CROSS_CORR_FNAME = "cross_corr.csv"
+    CROSS_CORR_FNAME = "../cross/cross_corr.csv"
     CROSS_NUM_TOKENS = 256
 
     # Config options only needed during training
