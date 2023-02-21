@@ -7,7 +7,7 @@ import torch
 from bienc.inference import embed_and_nn, entities_inference, predict_entities
 from bienc.model import BiencoderModule
 from bienc.tokenizer import init_tokenizer
-import config
+from config import CFG
 from data.content import get_content2text
 from data.topics import get_topic2text
 from typehints import FName
@@ -53,7 +53,7 @@ def main(data_dir: FName, tokenizer_dir: FName, biencoder_dir: FName, batch_size
     topic2text = get_topic2text(topics_df)
     content2text = get_content2text(content_df)
 
-    nn_model = embed_and_nn(encoder, content_ids, content2text, config.NUM_NEIGHBORS, batch_size, device)
+    nn_model = embed_and_nn(encoder, content_ids, content2text, CFG.NUM_NEIGHBORS, batch_size, device)
     distances, indices = entities_inference(topic_ids, encoder, nn_model, topic2text, device, batch_size)
     t2preds = predict_entities(topic_ids, distances, indices, THRESH, c2i)
     submission_df = get_submission_df(t2preds)

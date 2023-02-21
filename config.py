@@ -8,6 +8,7 @@ def to_config_dct(cfg_class):
     dct = {k: v for k, v in cfg_class.__dict__.items() if not k.startswith("__")}
     dct["DATA_DIR"] = str(dct["DATA_DIR"])
     dct["SCORE_FN"] = dct["SCORE_FN"].__name__
+    dct = {k: v for k, v in dct.items() if v is not None}
     return dct
 
 

@@ -10,7 +10,7 @@ class CrossEncoder(nn.Module):
             self.encoder =  AutoModel.from_pretrained(pretrained_path)
         else:
             self.encoder = AutoModel.from_pretrained(CFG.CROSS_MODEL_NAME)
-        self.linear = nn.Linear(self.encoder.config.hidden_dim, 1)
+        self.linear = nn.Linear(self.encoder.config.hidden_size, 1)
 
     def forward(self, input_ids, attention_mask):
         out = self.encoder(input_ids, attention_mask)

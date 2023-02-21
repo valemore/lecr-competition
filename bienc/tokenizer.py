@@ -42,7 +42,7 @@ def tokenize_cross(topic_text: str, content_text, num_tokens: int) -> Dict[str, 
     """
     enc = tokenizer(topic_text, content_text,
                     max_length=num_tokens,
-                    truncation="only_first",
+                    truncation="longest_first",
                     padding="max_length",
                     add_special_tokens=True,
                     return_overflowing_tokens=False,

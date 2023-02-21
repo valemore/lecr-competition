@@ -3,11 +3,13 @@ from argparse import ArgumentParser
 from datetime import datetime
 from pathlib import Path
 from typing import Dict
+import warnings
 
 import neptune.new as neptune
 import pandas as pd
 import torch
 import torch.nn as nn
+from neptune.common.deprecation import NeptuneDeprecationWarning
 from neptune.new import Run
 from sklearn.model_selection import KFold
 from torch.cuda.amp import GradScaler
@@ -22,7 +24,11 @@ from cross.dset import PositivesNegativesDataset
 from cross.model import CrossEncoder
 from data.content import get_content2text
 from data.topics import get_topic2text
-from utils import get_learning_rate_momentum, flatten_content_ids
+from utils import get_learning_rate_momentum, flatten_positive_negative_content_ids
+
+
+warnings.filterwarnings("error", category=NeptuneDeprecationWarning)
+
 
 tokenizer.init_tokenizer()
 
@@ -37,7 +43,7 @@ def train_one_epoch(model: CrossEncoder, loss_fn: LossFunction, loader: DataLoad
         *model_input, labels = batch
         with torch.cuda.amp.autocast(enabled=use_amp):
             scores = model(*model_input)
-            loss = loss_fn(scores, labels)
+            loss = loss_fn(scores, labels.reshape(-1, 1).float())
 
         scaler.scale(loss).backward()
         scaler.step(optim)
@@ -72,9 +78,9 @@ def evaluate(model: CrossEncoder, loss_fn: LossFunction, val_loader: DataLoader,
         *model_input, labels = batch
         with torch.no_grad():
             scores = model(*model_input)
-            loss = loss_fn(scores, labels)
+            loss = loss_fn(scores, labels.reshape(-1, 1).float())
         bs = scores.shape[0]
-        preds = (scores >= 0.5)
+        preds = (scores >= 0.0).int().reshape(-1)
 
         acc_cumsum += (preds == labels).sum().item()
         loss_cumsum += loss.item()
@@ -98,13 +104,13 @@ def main():
     output_dir = Path(CFG.output_dir)
 
     content_df = pd.read_csv(CFG.DATA_DIR / "content.csv")
-    corr_df = pd.read_csv(CFG.DATA_DIR / "gen_cross.csv")
+    corr_df = pd.read_csv(CFG.DATA_DIR / CFG.CROSS_CORR_FNAME)
     topics_df = pd.read_csv(CFG.DATA_DIR / "topics.csv")
 
     if CFG.tiny:
-        corr_df = corr_df.sample(1000).reset_index(drop=True)
+        corr_df = corr_df.sample(10).reset_index(drop=True)
         content_df = content_df.loc[content_df["id"].isin(
-            set(flatten_content_ids(corr_df)) | set(content_df["id"].sample(1000))), :].reset_index(drop=True)
+            set(flatten_positive_negative_content_ids(corr_df)) | set(content_df["id"].sample(1000))), :].reset_index(drop=True)
 
     topics_in_scope = sorted(list(set(corr_df["topic_id"])))
     random.seed(CFG.VAL_SPLIT_SEED)
@@ -130,13 +136,12 @@ def main():
         if CFG.folds != "no":
             val_topics = set(topics_in_scope[idx] for idx in topics_in_scope_val_idxs)
             val_corr_df = corr_df.loc[corr_df["topic_id"].isin(val_topics), :].reset_index(drop=True)
-            val_t2i = {topic: idx for idx, topic in enumerate(sorted(list(set(val_corr_df["topic_id"]))))}
             val_dset = PositivesNegativesDataset(val_corr_df["topic_id"], val_corr_df["content_ids"], val_corr_df["negative_cands"],
                                                  topic2text, content2text, CFG.CROSS_NUM_TOKENS)
             val_loader = DataLoader(val_dset, batch_size=CFG.batch_size, num_workers=CFG.NUM_WORKERS, shuffle=False)
 
         model = CrossEncoder().to(device)
-        loss_fn = nn.BCELoss().to(device)
+        loss_fn = nn.BCEWithLogitsLoss().to(device)
 
         optim = AdamW(model.parameters(), lr=CFG.max_lr, weight_decay=CFG.weight_decay)
         scaler = GradScaler(enabled=CFG.use_amp)
@@ -167,7 +172,7 @@ def main():
         # Save artifacts
         (output_dir / f"{CFG.experiment_name}_{run_start}" / "cross").mkdir(parents=True, exist_ok=True)
         # (output_dir / f"{CFG.experiment_name}_{run_start}" / "tokenizer").mkdir(parents=True, exist_ok=True)
-        model.content_encoder.encoder.save_pretrained(output_dir / f"{CFG.experiment_name}_{run_start}" / "cross")
+        model.encoder.save_pretrained(output_dir / f"{CFG.experiment_name}_{run_start}" / "cross")
         # tokenizer.tokenizer.save_pretrained(output_dir / f"{CFG.experiment_name}_{run_start}" / "tokenizer")
 
         fold_idx += 1

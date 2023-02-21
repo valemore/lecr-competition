@@ -52,10 +52,13 @@ if __name__ == "__main__":
     t2gold = get_topic_id_gold(corr_df)
 
     negative_ids = []
+    keepstopping = True
     for topic_id, pred_idxs in zip(topic_ids, indices):
         gold = t2gold[topic_id]
         # gold_idxs = [c2i[content_id] for content_id in t2gold[topic_id]]
         negatives = [i2c[pred_idx] for pred_idx in pred_idxs if i2c[pred_idx] not in gold]
+        if keepstopping and not negatives and len(gold) != CFG.NUM_NEIGHBORS:
+            import pdb; pdb.set_trace()
         negative_ids.append(" ".join(negatives))
     gen_df = corr_df.copy()
     gen_df["negative_cands"] = negative_ids

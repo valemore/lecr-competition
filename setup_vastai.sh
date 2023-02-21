@@ -13,5 +13,6 @@ scp ~/.ssh/vastai.pub $SSH_PROFILE:~/.ssh/
 
 ssh $SSH_PROFILE 'tmux new -d -s sesh'
 ssh $SSH_PROFILE 'tmux send-keys -t sesh.0 '"'cd $CODE_DIR && bash setup_env.sh'" ENTER''
-ssh $SSH_PROFILE 'tmux send-keys -t sesh.0 '"'cd $BASE_DIR && bash vastai_cmds.sh'" ENTER''
-ssh $SSH_PROFILE 'tmux kill-session -t sesh'
+ssh $SSH_PROFILE 'tmux send-keys -t sesh.0 '"'cd $CODE_DIR && bash vastai_cmds.sh'" ENTER''
+ssh $SSH_PROFILE 'tmux a -t sesh.0'
+# ssh $SSH_PROFILE 'tmux kill-session -t sesh'
