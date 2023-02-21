@@ -107,10 +107,13 @@ def main():
     corr_df = pd.read_csv(CFG.CROSS_CORR_FNAME, keep_default_na=False)
     topics_df = pd.read_csv(CFG.DATA_DIR / "topics.csv")
 
+    # corr_df["negative_cands"] = [" ".join(x.split()[:10]) for x in corr_df["negative_cands"]]
+
     if CFG.tiny:
         corr_df = corr_df.sample(10).reset_index(drop=True)
-        content_df = content_df.loc[content_df["id"].isin(
-            set(flatten_positive_negative_content_ids(corr_df)) | set(content_df["id"].sample(1000))), :].reset_index(drop=True)
+        content_df = content_df.loc[content_df["id"].isin(set(flatten_positive_negative_content_ids(corr_df))), :].reset_index(drop=True)
+
+    print(f'Positive class ratio: {sum(len(x.split()) for x in corr_df["content_ids"]) / sum(len(x.split()) for x in corr_df["negative_cands"])}')
 
     topics_in_scope = sorted(list(set(corr_df["topic_id"])))
     random.seed(CFG.VAL_SPLIT_SEED)
