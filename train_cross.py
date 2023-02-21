@@ -35,7 +35,7 @@ tokenizer.init_tokenizer()
 
 def train_one_epoch(model: CrossEncoder, loss_fn: LossFunction, loader: DataLoader, device: torch.device,
                     optim: Optimizer, scheduler, use_amp: bool, scaler: GradScaler, global_step: int, run: Run) -> int:
-    """Train one epoch of Bi-encoder."""
+    """Train one epoch of Cross-Encoder."""
     step = global_step
     model.train()
     for batch in tqdm(loader):
