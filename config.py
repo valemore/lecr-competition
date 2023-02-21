@@ -19,21 +19,18 @@ def to_config_dct(cfg_class):
 class CFG:
     # Config options shared between training and inference
     DATA_DIR = Path("../data")
+    NUM_WORKERS = 24
 
     # Validation set size and training seed
     VAL_SPLIT_SEED = 623
 
     # Bi-Encoder
     BIENC_MODEL_NAME = "bert-base-multilingual-uncased"
-
     TOPIC_NUM_TOKENS = 128
     CONTENT_NUM_TOKENS = 128
-
     SCORE_FN = cos_sim
 
-    NUM_WORKERS = 24
-
-    NUM_NEIGHBORS = 100
+    NUM_NEIGHBORS = 500
 
     # Cross-Encoder
     CROSS_MODEL_NAME = "bert-base-multilingual-uncased"

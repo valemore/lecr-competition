@@ -2,7 +2,7 @@ from argparse import ArgumentParser
 from datetime import datetime
 from pathlib import Path
 import random
-from typing import Dict, List, Set, Tuple
+from typing import Dict
 
 import numpy as np
 import pandas as pd
@@ -25,9 +25,8 @@ from data.topics import get_topic2text
 from bienc.model import Biencoder, BiencoderModule
 from bienc.losses import BidirectionalMarginLoss
 from metrics import get_fscore
-from typehints import MetricDict
 from utils import get_learning_rate_momentum, flatten_content_ids, are_entity_ids_aligned, get_topic_id_gold
-from bienc.metrics import get_recall_dct, get_min_max_ranks, get_mean_inverse_rank
+from bienc.metrics import get_precision_recall_metrics, log_precision_dct, BIENC_STANDALONE_THRESHS, BIENC_EVAL_THRESHS
 
 
 tokenizer.init_tokenizer()
@@ -127,9 +126,8 @@ def evaluate_inference(encoder: BiencoderModule, device: torch.device, batch_siz
 
     # Rank metrics
     t2gold = get_topic_id_gold(corr_df)
-    get_log_rank_metrics(indices, data_ids, e2i, t2gold, global_step, run)
-    precision_dct, recall_dct, avg_precision_dct = get_precision_recall_metrics(indices, data_ids, e2i, t2gold)
-    print(f"Mean average precision @ 100: {avg_precision_dct[100]:.5}")
+    precision_dct, recall_dct, avg_precision_dct = get_precision_recall_metrics(distances, indices, data_ids, e2i, t2gold)
+    print(f"Mean average precision @ {BIENC_EVAL_THRESHS[-1]}: {avg_precision_dct[BIENC_EVAL_THRESHS[-1]]:.5}")
     log_precision_dct(precision_dct, "val/precision", global_step, run)
     log_precision_dct(recall_dct, "val/recall", global_step, run)
     log_precision_dct(avg_precision_dct, "val/avg_precision", global_step, run)
@@ -138,7 +136,7 @@ def evaluate_inference(encoder: BiencoderModule, device: torch.device, batch_siz
     best_thresh = None
     best_fscore = -1.0
     thresh2score = {}
-    for thresh in np.arange(0.1, 0.52, 0.02):
+    for thresh in BIENC_STANDALONE_THRESHS:
         t2preds = predict_entities(data_ids, distances, indices, thresh, e2i)
         fscore = get_fscore(t2gold, t2preds)
         thresh2score[thresh] = fscore
@@ -151,66 +149,6 @@ def evaluate_inference(encoder: BiencoderModule, device: torch.device, batch_siz
     print(f"Best F2 score: {best_fscore}")
     run[f"val/best_thresh"].log(best_thresh, step=global_step)
     run[f"val/best_F2"].log(best_fscore, step=global_step)
-
-
-def get_precision_recall_metrics(indices, topic_ids: List[str], e2i: Dict[str, int], t2gold: Dict[str, Set[str]]) -> Tuple[MetricDict, MetricDict, MetricDict]:
-    i2e = {entity_idx: entity_id for entity_id, entity_idx in e2i.items()}
-    tp = np.empty_like(indices, dtype=int) # mask indicating whether prediction is a true positive
-    num_gold = np.empty(len(topic_ids), dtype=int) # how many content ids are in gold?
-    for i, (idxs, topic_id) in enumerate(zip(indices, topic_ids)):
-        gold = t2gold[topic_id]
-        tp[i, :] = np.array([int(i2e[idx] in gold) for idx in idxs], dtype=int)
-        num_gold[i] = len(gold)
-
-    precision_dct = {num_cands: 0.0 for num_cands in range(1, CFG.NUM_NEIGHBORS + 1)}
-    recall_dct = {num_cands: 0.0 for num_cands in range(1, CFG.NUM_NEIGHBORS + 1)}
-    avg_precision_dct = {num_cands: 0.0 for num_cands in range(1, CFG.NUM_NEIGHBORS + 1)}
-
-    acc_tp = np.zeros(len(topic_ids), dtype=float) # accumulating true positives for all topic ids
-    acc_avg_prec = np.zeros(len(topic_ids), dtype=float) # accumulating average precisino for all topic ids
-    prev_rec = np.zeros(len(topic_ids), dtype=float) # previous recall
-    for j, num_cands in enumerate(range(1, CFG.NUM_NEIGHBORS + 1)):
-        acc_tp += tp[:, j]
-        prec = acc_tp / num_cands
-        rec = acc_tp / num_gold
-        acc_avg_prec += prec * (rec - prev_rec)
-        prev_rec = rec
-        precision_dct[num_cands] = np.mean(prec)
-        recall_dct[num_cands] = np.mean(rec)
-        avg_precision_dct[num_cands] = np.mean(acc_avg_prec)
-    return precision_dct, recall_dct, avg_precision_dct
-
-
-def log_precision_dct(dct: Dict[int, float], label: str, global_step: int, run: Run):
-    for k, v in dct.items():
-        run[f"{label}@{k}"].log(v, step=global_step)
-
-
-def log_recall_dct(recall_dct: Dict[int, float], global_step: int, run: Run, label: str) -> None:
-    """Log a recall dictionary to neptune.ai"""
-    for k, v in recall_dct.items():
-        run[f"{label}@{k}"].log(v, step=global_step)
-
-
-def get_log_rank_metrics(indices,
-                         data_ids: List[str], e2i: Dict[str, int], t2gold: Dict[str, Set[str]],
-                         global_step: int, run: Run) -> None:
-    """Compare with gold, compute and log rank metrics."""
-    min_ranks, max_ranks = get_min_max_ranks(indices, data_ids, t2gold, e2i)
-    min_mir = get_mean_inverse_rank(min_ranks)
-    max_mir = get_mean_inverse_rank(max_ranks)
-    min_recall_dct = get_recall_dct(min_ranks)
-    max_recall_dct = get_recall_dct(max_ranks)
-
-    print(f"Evaluation inference mode mean inverse min rank: {min_mir:.5}")
-    print(f"Evaluation inference mode min recall@1: {min_recall_dct[1]:.5}")
-    print(f"Evaluation inference mode mean inverse max rank: {max_mir:.5}")
-    print(f"Evaluation inference mode max recall@1: {max_recall_dct[1]:.5}")
-
-    run["val/min_mir"].log(min_mir, step=global_step)
-    run["val/max_mir"].log(max_mir, step=global_step)
-    log_recall_dct(min_recall_dct, global_step, run, "val/min_recall")
-    log_recall_dct(max_recall_dct, global_step, run, "val/max_recall")
 
 
 def main():
