@@ -26,7 +26,7 @@ from bienc.model import Biencoder, BiencoderModule
 from bienc.losses import BidirectionalMarginLoss
 from metrics import get_fscore
 from utils import get_learning_rate_momentum, flatten_content_ids, are_entity_ids_aligned, get_topic_id_gold
-from bienc.metrics import get_precision_recall_metrics, log_precision_dct, BIENC_STANDALONE_THRESHS, BIENC_EVAL_THRESHS
+from bienc.metrics import get_bienc_metrics, log_precision_dct, BIENC_STANDALONE_THRESHS, BIENC_EVAL_THRESHS
 
 
 tokenizer.init_tokenizer()
@@ -126,9 +126,11 @@ def evaluate_inference(encoder: BiencoderModule, device: torch.device, batch_siz
 
     # Rank metrics
     t2gold = get_topic_id_gold(corr_df)
-    precision_dct, recall_dct, avg_precision = get_precision_recall_metrics(distances, indices, data_ids, e2i, t2gold)
+    precision_dct, recall_dct, avg_precision, hypo_f2 = get_bienc_metrics(distances, indices, data_ids, e2i, t2gold)
     print(f"Mean average precision: {avg_precision:.5}")
+    print(f"Hypo F2: {hypo_f2:.5}")
     run["val/avg_precision"].log(avg_precision, step=global_step)
+    run["val/hypo_f2"].log(hypo_f2, step=global_step)
     log_precision_dct(precision_dct, "val/precision", global_step, run)
     log_precision_dct(recall_dct, "val/recall", global_step, run)
 

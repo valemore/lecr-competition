@@ -15,13 +15,17 @@ def recall(gold: Set[str], pred: Set[str]):
     return len(both) / len(gold)
 
 
+def fscore_from_prec_rec(prec, rec, beta=2.0):
+    den = (beta ** 2 * prec) + rec
+    if den == 0.0:
+        return 0.0
+    return (1 + beta ** 2) * prec * rec / den
+
+
 def single_fscore(gold, pred, beta=2.0):
     prec = precision(gold, pred)
     rec = recall(gold, pred)
-    den = (beta ** 2 * prec) + rec
-    if (den == 0.0):
-        return 0.0
-    return (1 + beta ** 2) * prec * rec / den
+    return fscore_from_prec_rec(prec, rec, beta)
 
 
 def get_fscore(t2gold: Dict[str, Set[str]], t2pred: Dict[str, Set[str]], beta: float = 2.0):
