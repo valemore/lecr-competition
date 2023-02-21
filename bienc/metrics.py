@@ -26,19 +26,23 @@ def get_precision_recall_metrics(distances, indices,
     avg_precision_dct = {thresh: 0.0 for thresh in BIENC_EVAL_THRESHS}
 
     acc_tp = np.zeros(len(topic_ids), dtype=float) # accumulating true positives for all topic ids
-    acc_avg_prec = np.zeros(len(topic_ids), dtype=float) # accumulating average precision for all topic ids
+    avg_prec = np.zeros(len(topic_ids), dtype=float) # accumulating average precision for all topic ids
     prev_rec = np.zeros(len(topic_ids), dtype=float) # previous recall
     for thresh in BIENC_EVAL_THRESHS:
         mask = distances <= thresh
-        acc_tp += tp[:, mask]
+        thresh_tp = np.copy(tp)
+        thresh_tp[~mask] = 0
+        num_tp = np.sum(thresh_tp, axis=1)
         num_preds = np.sum(mask, axis=1)
-        prec = acc_tp / num_preds
-        rec = acc_tp / num_gold
-        acc_avg_prec += prec * (rec - prev_rec)
+        prec = num_tp / num_preds
+        rec = num_tp / num_gold
+        prec[np.isnan(prec)] = -1 # because 0 * nan is not 0
+        assert np.sum(prec * (rec - prev_rec) < 0) == 0
+        avg_prec += prec * (rec - prev_rec)
         prev_rec = rec
         precision_dct[thresh] = np.mean(prec)
         recall_dct[thresh] = np.mean(rec)
-        avg_precision_dct[thresh] = np.mean(acc_avg_prec)
+        avg_precision_dct[thresh] = np.mean(avg_prec)
     return precision_dct, recall_dct, avg_precision_dct
 
 
