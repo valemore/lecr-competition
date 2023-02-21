@@ -25,7 +25,6 @@ def get_precision_recall_metrics(distances, indices,
     recall_dct = {thresh: 0.0 for thresh in BIENC_EVAL_THRESHS}
     avg_precision_dct = {thresh: 0.0 for thresh in BIENC_EVAL_THRESHS}
 
-    acc_tp = np.zeros(len(topic_ids), dtype=float) # accumulating true positives for all topic ids
     avg_prec = np.zeros(len(topic_ids), dtype=float) # accumulating average precision for all topic ids
     prev_rec = np.zeros(len(topic_ids), dtype=float) # previous recall
     for thresh in BIENC_EVAL_THRESHS:
