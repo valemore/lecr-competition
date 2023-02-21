@@ -15,7 +15,7 @@ BIENC_STANDALONE_THRESHS = [round(x, 2) for x in np.arange(0.1, 0.52, 0.02)]
 
 
 def get_bienc_metrics(distances, indices,
-                      topic_ids: List[str], e2i: Dict[str, int], t2gold: Dict[str, Set[str]]) -> Tuple[MetricDict, MetricDict, float, float]:
+                      topic_ids: List[str], e2i: Dict[str, int], t2gold: Dict[str, Set[str]]) -> Tuple[MetricDict, MetricDict, float]:
     i2e = {entity_idx: entity_id for entity_id, entity_idx in e2i.items()}
     tp = np.empty_like(indices, dtype=int) # mask indicating whether prediction is a true positive
     num_gold = np.empty(len(topic_ids), dtype=int) # how many content ids are in gold?
@@ -25,7 +25,6 @@ def get_bienc_metrics(distances, indices,
         num_gold[i] = len(gold)
 
 
-    hypo_f2 = np.mean([fscore_from_prec_rec(1.0, x, beta=2.0) for x in np.sum(tp, axis=1) / num_gold]).item()
     precision_dct = {thresh: 0.0 for thresh in BIENC_EVAL_THRESHS}
     recall_dct = {thresh: 0.0 for thresh in BIENC_EVAL_THRESHS}
 
@@ -46,7 +45,7 @@ def get_bienc_metrics(distances, indices,
         precision_dct[thresh] = np.mean(prec)
         recall_dct[thresh] = np.mean(rec)
     avg_precision = np.mean(avg_prec)
-    return precision_dct, recall_dct, avg_precision.item(), hypo_f2
+    return precision_dct, recall_dct, avg_precision.item()
 
 
 def log_precision_dct(dct: Dict[int, float], label: str, global_step: int, run: Run):
