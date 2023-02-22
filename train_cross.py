@@ -26,8 +26,8 @@ from cross.dset import PositivesNegativesDataset
 from cross.model import CrossEncoder
 from data.content import get_content2text
 from data.topics import get_topic2text
-from utils import get_learning_rate_momentum, flatten_positive_negative_content_ids
-
+from metrics import fscore_from_prec_rec
+from utils import get_learning_rate_momentum, flatten_positive_negative_content_ids, get_topic_id_gold
 
 warnings.filterwarnings("error", category=NeptuneDeprecationWarning)
 
@@ -66,8 +66,11 @@ def train_one_epoch(model: CrossEncoder, loss_fn: LossFunction, loader: DataLoad
     return step
 
 
-def evaluate(model: CrossEncoder, loss_fn: LossFunction, val_loader: DataLoader, device: torch.device, global_step: int,
-             run: Run) -> Dict[str, float]:
+CROSS_EVAL_THRESHS = [round(x, 2) for x in np.arange(-0.2, 0.2, 0.02)]
+
+
+def evaluate(model: CrossEncoder, loss_fn: LossFunction, val_loader: DataLoader, device: torch.device, num_gold: int,
+             global_step: int, run: Run) -> Dict[str, float]:
     """Performs in-batch validation."""
     all_scores = []
     all_labels = []
@@ -85,11 +88,10 @@ def evaluate(model: CrossEncoder, loss_fn: LossFunction, val_loader: DataLoader,
         loss_cumsum += loss.item()
         num_batches += 1
 
-
     all_scores = np.concatenate(all_scores)
     all_labels = np.concatenate(all_labels)
     avg_precision = average_precision_score(all_labels, all_scores) # TODO ???
-    acc = np.mean((all_scores >= 0.0) == all_labels)
+    acc = np.mean(all_scores >= 0.0)
     loss = loss_cumsum / num_batches
 
     print(f"Evaluation avg precision: {avg_precision:.5}")
@@ -99,6 +101,25 @@ def evaluate(model: CrossEncoder, loss_fn: LossFunction, val_loader: DataLoader,
     run["val/avg_precision"].log(avg_precision, step=global_step)
     run["val/acc"].log(acc, step=global_step)
     run["val/loss"].log(loss, step=global_step)
+
+    # F2 and thresholds
+    best_thresh = None
+    best_fscore = -1.0
+    for thresh in CROSS_EVAL_THRESHS:
+        all_preds = all_scores >= thresh
+        tp = (all_preds == 1) & (all_labels == 1)
+        prec = np.sum(tp) / np.sum(all_preds)
+        rec = np.sum(tp) / num_gold
+        fscore = fscore_from_prec_rec(prec, rec, 2.0)
+        if fscore > best_fscore:
+            best_fscore = fscore
+            best_thresh = thresh
+            print(f"validation f2 using threshold {thresh}: {fscore:.5}")
+            run[f"val/F2@{thresh}"].log(fscore, step=global_step)
+    print(f"Best threshold: {best_thresh}")
+    print(f"Best F2 score: {best_fscore}")
+    run[f"val/best_thresh"].log(best_thresh, step=global_step)
+    run[f"val/best_F2"].log(best_fscore, step=global_step)
 
     return {"avg_precision": avg_precision, "acc": acc, "loss": loss}
 
@@ -143,6 +164,7 @@ def main():
         if CFG.folds != "no":
             val_topics = set(topics_in_scope[idx] for idx in topics_in_scope_val_idxs)
             val_corr_df = corr_df.loc[corr_df["topic_id"].isin(val_topics), :].reset_index(drop=True)
+            val_num_gold = sum([len(g) for g in get_topic_id_gold(val_corr_df).values()])
             val_dset = PositivesNegativesDataset(val_corr_df["topic_id"], val_corr_df["content_ids"], val_corr_df["cands"],
                                                  topic2text, content2text, CFG.CROSS_NUM_TOKENS)
             val_loader = DataLoader(val_dset, batch_size=CFG.batch_size, num_workers=CFG.NUM_WORKERS, shuffle=False)
@@ -172,7 +194,7 @@ def main():
             if CFG.folds != "no":
                 # Loss and in-batch accuracy for training validation set
                 print(f"Evaluating epoch {epoch}...")
-                evaluate(model, loss_fn, val_loader, device, global_step, run)
+                evaluate(model, loss_fn, val_loader, device, val_num_gold, global_step, run)
 
                 # Evaluate inference
                 # TODO
