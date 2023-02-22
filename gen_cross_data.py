@@ -10,7 +10,7 @@ from bienc.tokenizer import init_tokenizer
 from config import CFG
 from data.content import get_content2text
 from data.topics import get_topic2text
-from submit import get_bienc, get_test_topic_ids
+from submit import get_bienc
 from utils import get_topic_id_gold
 
 
