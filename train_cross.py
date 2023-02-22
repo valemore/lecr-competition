@@ -142,7 +142,8 @@ def main():
         corr_df = corr_df.sample(10).reset_index(drop=True)
         content_df = content_df.loc[content_df["id"].isin(set(flatten_positive_negative_content_ids(corr_df))), :].reset_index(drop=True)
 
-    print(f'Positive class ratio: {sum(len(x.split()) for x in corr_df["content_ids"]) / sum(len(x.split()) for x in corr_df["cands"])}')
+    class_ratio = sum(len(x.split()) for x in corr_df["content_ids"]) / sum(len(x.split()) for x in corr_df["cands"])
+    print(f"Positive class ratio: {class_ratio}")
 
     topics_in_scope = sorted(list(set(corr_df["topic_id"])))
     random.seed(CFG.VAL_SPLIT_SEED)
@@ -192,6 +193,7 @@ def main():
         run["part"] = "cross"
         run["run_start"] = run_start
         run["run_id"] = run_id
+        run["positive_class_ratio"] = class_ratio
 
         # Train
         global_step = 0
