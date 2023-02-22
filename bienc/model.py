@@ -23,7 +23,7 @@ class BiencoderModule(nn.Module):
     def __init__(self, pretrained_path=None):
         super().__init__()
         if pretrained_path:
-            self.encoder =  AutoModel.from_pretrained(pretrained_path)
+            self.encoder = AutoModel.from_pretrained(pretrained_path)
         else:
             self.encoder = AutoModel.from_pretrained(CFG.BIENC_MODEL_NAME)
 
