@@ -12,10 +12,6 @@ def to_config_dct(cfg_class):
     return dct
 
 
-# class GLB:
-#     device = None
-
-
 class CFG:
     # Config options shared between training and inference
     DATA_DIR = Path("../data")
