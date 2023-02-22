@@ -45,9 +45,10 @@ def train_one_epoch(model: CrossEncoder, loss_fn: LossFunction, loader: DataLoad
         batch = tuple(x.to(device) for x in batch)
         *model_input, labels = batch
         with torch.cuda.amp.autocast(enabled=use_amp):
-            scores = model(*model_input)
-            loss = loss_fn(scores, labels.reshape(-1, 1).float())
+            out = model(*model_input, labels=labels)
+            # loss = loss_fn(scores, labels.reshape(-1, 1).float())
 
+        loss = out.loss
         scaler.scale(loss).backward()
         scaler.step(optim)
         scaler.update()
@@ -73,7 +74,7 @@ CROSS_EVAL_THRESHS = [round(x, 2) for x in np.arange(-0.2, 0.2, 0.02)]
 def evaluate(model: CrossEncoder, loss_fn: LossFunction, val_loader: DataLoader, device: torch.device, num_gold: int,
              global_step: int, run: Run) -> Dict[str, float]:
     """Performs in-batch validation."""
-    all_scores = []
+    all_probs = []
     all_labels = []
     loss_cumsum = 0.0
     num_batches = 0
@@ -82,17 +83,19 @@ def evaluate(model: CrossEncoder, loss_fn: LossFunction, val_loader: DataLoader,
         batch = tuple(x.to(device) for x in batch)
         *model_input, labels = batch
         with torch.no_grad():
-            scores = model(*model_input)
+            out = model(*model_input, labels=labels)
             # loss = loss_fn(scores, labels.reshape(-1, 1).float())
-        all_scores.append(scores.cpu().numpy().reshape(-1))
+        logits = out.logits
+        probs = logits.softmax(dim=1)[:, 1]
+        all_probs.append(probs.cpu().numpy().reshape(-1))
         all_labels.append(labels.cpu().numpy())
         # loss_cumsum += loss.item()
         num_batches += 1
 
-    all_scores = np.concatenate(all_scores)
+    all_probs = np.concatenate(all_probs)
     all_labels = np.concatenate(all_labels)
-    avg_precision = average_precision_score(all_labels, all_scores) # TODO ???
-    acc = np.mean(all_scores >= 0.0)
+    avg_precision = average_precision_score(all_labels, all_probs) # TODO ???
+    acc = np.mean(all_probs >= 0.0)
     loss = loss_cumsum / num_batches
 
     print(f"Evaluation avg precision: {avg_precision:.5}")
@@ -107,7 +110,7 @@ def evaluate(model: CrossEncoder, loss_fn: LossFunction, val_loader: DataLoader,
     best_thresh = None
     best_fscore = -1.0
     for thresh in CROSS_EVAL_THRESHS:
-        all_preds = all_scores >= thresh
+        all_preds = all_probs >= thresh
         tp = (all_preds == 1) & (all_labels == 1)
         prec = np.sum(tp) / np.sum(all_preds)
         rec = np.sum(tp) / num_gold
@@ -171,7 +174,7 @@ def main():
             val_loader = DataLoader(val_dset, batch_size=CFG.batch_size, num_workers=CFG.NUM_WORKERS, shuffle=False)
 
         # model = CrossEncoder().to(device)
-        model = AutoModelForSequenceClassification.from_pretrained(CFG.CROSS_MODEL_NAME, num_labels=2)
+        model = AutoModelForSequenceClassification.from_pretrained(CFG.CROSS_MODEL_NAME, num_labels=2).to(device)
         # loss_fn = nn.BCEWithLogitsLoss().to(device)
         loss_fn = None
 
@@ -208,7 +211,7 @@ def main():
         # Save artifacts
         (output_dir / f"{run_id}" / "cross").mkdir(parents=True, exist_ok=True)
         # (output_dir / f"{run_id}" / "tokenizer").mkdir(parents=True, exist_ok=True)
-        model.encoder.save_pretrained(output_dir / f"{run_id}" / "cross")
+        model.save_pretrained(output_dir / f"{run_id}" / "cross")
         # tokenizer.tokenizer.save_pretrained(output_dir / f"{run_id}" / "tokenizer")
 
         fold_idx += 1
