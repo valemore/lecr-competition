@@ -1,13 +1,17 @@
+import gc
 from pathlib import Path
 from typing import Dict, Set, List
 
 import pandas as pd
 import torch
+from transformers import AutoModel
 
-from bienc.inference import embed_and_nn, entities_inference, predict_entities
+from bienc.inference import embed_and_nn, entities_inference, predict_entities, get_cand_df
 from bienc.model import BiencoderModule
 from bienc.tokenizer import init_tokenizer
 from config import CFG
+from cross.dset import CrossInferenceDataset
+from cross.inference import predict
 from data.content import get_content2text
 from data.topics import get_topic2text
 from typehints import FName
@@ -18,8 +22,15 @@ def get_test_topic_ids(fname: FName) -> List[str]:
     return sorted(list(set(df["topic_id"])))
 
 
-def get_biencoder(biencoder_dir: FName, device: torch.device) -> BiencoderModule:
-    model = BiencoderModule(biencoder_dir)
+def get_bienc(bienc_dir: FName, device: torch.device) -> BiencoderModule:
+    model = BiencoderModule(bienc_dir)
+    model.to(device)
+    model.eval()
+    return model
+
+
+def get_cross(cross_dir: FName, device: torch.device):
+    model = AutoModel.from_pretrained(cross_dir)
     model.to(device)
     model.eval()
     return model
@@ -33,17 +44,38 @@ def get_submission_df(t2preds: Dict[str, Set[str]]) -> pd.DataFrame:
     df = pd.DataFrame({"topic_id": topic_id_col, "content_ids": content_ids_col})
     return df
 
-# DATA_DIR = Path("/kaggle/input/learning-equality-curriculum-recommendations")
-# BIENCODER_FNAME = "/kaggle/input/kolibri-model/biencoder.pt"
 
-def main(data_dir: FName, tokenizer_dir: FName, biencoder_dir: FName, batch_size: int):
-    THRESH = 0.18
-
+def standalone_bienc_main(thresh: float, data_dir: FName, tokenizer_dir: FName, bienc_dir: FName, batch_size: int):
     data_dir = Path(data_dir)
     device = torch.device("cuda")
     init_tokenizer(tokenizer_dir)
-    encoder = get_biencoder(biencoder_dir, device)
 
+    content_df, topics_df, topic_ids, content_ids, c2i, topic2text, content2text = get_data(data_dir)
+
+    distances, indices = bienc_main(topic_ids, content_ids, topic2text, content2text,
+                                    bienc_dir, batch_size, device)
+    t2preds = predict_entities(topic_ids, distances, indices, thresh, c2i)
+    submission_df = get_submission_df(t2preds)
+    return submission_df
+
+
+def bienc_main(topic_ids: List[str], content_ids: List[str], topic2text: Dict[str, str], content2text: Dict[str, str],
+               bienc_dir: FName, batch_size: int, device: torch.device):
+    encoder = get_bienc(bienc_dir, device)
+    nn_model = embed_and_nn(encoder, content_ids, content2text, CFG.NUM_NEIGHBORS, batch_size, device)
+    distances, indices = entities_inference(topic_ids, encoder, nn_model, topic2text, device, batch_size)
+    return distances, indices
+
+
+def cross_main(thresh: float, cand_df: pd.DataFrame, topic2text, content2text, cross_dir: FName,
+               batch_size: int, device: torch.device):
+    model = get_cross(cross_dir, device)
+    dset = CrossInferenceDataset(cand_df["topic_id"], cand_df["cands"], topic2text, content2text, CFG.CROSS_NUM_TOKENS)
+    all_preds = predict(model, dset, thresh, batch_size, device)
+    return all_preds
+
+
+def get_data(data_dir: FName):
     content_df = pd.read_csv(data_dir / "content.csv")
     topics_df = pd.read_csv(data_dir / "topics.csv")
     topic_ids = get_test_topic_ids(data_dir / "sample_submission.csv")
@@ -53,8 +85,33 @@ def main(data_dir: FName, tokenizer_dir: FName, biencoder_dir: FName, batch_size
     topic2text = get_topic2text(topics_df)
     content2text = get_content2text(content_df)
 
-    nn_model = embed_and_nn(encoder, content_ids, content2text, CFG.NUM_NEIGHBORS, batch_size, device)
-    distances, indices = entities_inference(topic_ids, encoder, nn_model, topic2text, device, batch_size)
-    t2preds = predict_entities(topic_ids, distances, indices, THRESH, c2i)
+    return content_df, topics_df, topic_ids, content_ids, c2i, topic2text, content2text
+
+
+def main(thresh: float, data_dir: FName, tokenizer_dir: FName, bienc_dir: FName, cross_dir: FName,
+         bienc_batch_size: int, cross_batch_size: int):
+    data_dir = Path(data_dir)
+    device = torch.device("cuda")
+    init_tokenizer(tokenizer_dir)
+
+    content_df, topics_df, topic_ids, content_ids, c2i, topic2text, content2text = get_data(data_dir)
+
+    distances, indices = bienc_main(topic_ids, content_ids, topic2text, content2text,
+                                    bienc_dir, bienc_batch_size, device)
+    cand_df = get_cand_df(topic_ids, distances, indices, thresh, c2i)
+    del distances, indices
+    gc.collect()
+    all_preds = cross_main(thresh, cand_df, topic2text, content2text, cross_dir, cross_batch_size, device)
+
+    t2preds = {}
+    for topic_id in topic_ids:
+        t2preds[topic_id] = set()
+    i = 0
+    for topic_id, topic_cand_ids in zip(cand_df["topic_id"], cand_df["cands"]):
+        for cand_id in topic_cand_ids.split():
+            if all_preds[i]:
+                t2preds[topic_id].add(cand_id)
+            i += 1
+
     submission_df = get_submission_df(t2preds)
     return submission_df

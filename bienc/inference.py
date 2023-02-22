@@ -2,6 +2,7 @@
 from typing import Any, Dict, List, Set, Tuple
 
 import cupy as cp
+import pandas as pd
 import torch
 from cuml import NearestNeighbors
 from torch.utils.data import DataLoader
@@ -89,3 +90,24 @@ def entities_inference(data_ids: List[str], encoder: BiencoderModule, nn_model: 
     distances, indices = nn_model.kneighbors(embs, return_distance=True)
     distances, indices = cp.asnumpy(distances), cp.asnumpy(indices)
     return distances, indices
+
+
+def get_cand_df(topic_ids: List[str], distances, indices, thresh: float, e2i: Dict[str, int]) -> pd.DataFrame:
+    """
+    Converts distances and indices obtained from NN search to dataframe containing candidate contents for all topics.
+    :param topic_ids: all topic ids in order
+    :param distances: distances - output from NN model
+    :param indices: indices - output from NN model
+    :param thresh: threshold to use for generating candidates
+    :param e2i: dct mapping entity names to indices
+    :return: dataframe with two columns: topic ids and concatenated candidate ids
+    """
+    i2e = {entity_idx: entity_id for entity_id, entity_idx in e2i.items()}
+    all_topic_cand_ids = []
+    for data_id, dists, idxs in zip(topic_ids, distances, indices):
+        cands = [i2e[pred_idx] for pred_idx, dist in zip(idxs, dists) if dist <= thresh]
+        # TODO
+        # if not cands:
+        #     cands = [i2e[idxs[0]]]
+        all_topic_cand_ids.append(" ".join(cands))
+    return pd.DataFrame({"topic_id": topic_ids, "cands": all_topic_cand_ids})

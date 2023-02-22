@@ -10,7 +10,7 @@ from bienc.tokenizer import init_tokenizer
 from config import CFG
 from data.content import get_content2text
 from data.topics import get_topic2text
-from submit import get_biencoder, get_test_topic_ids
+from submit import get_bienc, get_test_topic_ids
 from utils import get_topic_id_gold
 
 
@@ -38,7 +38,7 @@ if __name__ == "__main__":
     out_fname = Path(args.out)
     CFG.batch_size = args.batch_size
 
-    bienc = get_biencoder(args.bienc_path, device)
+    bienc = get_bienc(args.bienc_path, device)
     init_tokenizer(args.tokenizer_path)
     content_df = pd.read_csv(CFG.DATA_DIR / "content.csv")
     topics_df = pd.read_csv(CFG.DATA_DIR / "topics.csv")
