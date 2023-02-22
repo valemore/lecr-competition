@@ -26,8 +26,7 @@ from bienc.model import Biencoder, BiencoderModule
 from bienc.losses import BidirectionalMarginLoss
 from metrics import get_fscore
 from utils import get_learning_rate_momentum, flatten_content_ids, are_entity_ids_aligned, get_topic_id_gold
-from bienc.metrics import get_bienc_metrics, log_precision_dct, BIENC_STANDALONE_THRESHS, BIENC_EVAL_THRESHS, \
-    get_bienc_metrics_neighbors
+from bienc.metrics import get_bienc_metrics, log_precision_dct, BIENC_STANDALONE_THRESHS, get_log_mir_metrics
 
 tokenizer.init_tokenizer()
 
@@ -126,18 +125,12 @@ def evaluate_inference(encoder: BiencoderModule, device: torch.device, batch_siz
 
     # Rank metrics
     t2gold = get_topic_id_gold(corr_df)
-    precision_dct, recall_dct, avg_precision = get_bienc_metrics(distances, indices, data_ids, e2i, t2gold)
-    print(f"Mean average precision: {avg_precision:.5}")
+    get_log_mir_metrics(indices, data_ids, e2i, t2gold, global_step, run)
+    precision_dct, recall_dct, avg_precision = get_bienc_metrics(indices, data_ids, e2i, t2gold)
+    print(f"Mean average precision @ {CFG.NUM_NEIGHBORS}: {avg_precision:.5}")
     run["val/avg_precision"].log(avg_precision, step=global_step)
     log_precision_dct(precision_dct, "val/precision", global_step, run)
     log_precision_dct(recall_dct, "val/recall", global_step, run)
-
-    # 118
-    neigbors_precision_dct, neigbors_recall_dct, neighbors_avg_precision = get_bienc_metrics_neighbors(indices, data_ids, e2i, t2gold, num_neighbors=100)
-    print(f"Mean average precision@100: {neighbors_avg_precision:.5}")
-    run["neighbors/avg_precision"].log(neighbors_avg_precision, step=global_step)
-    log_precision_dct(neigbors_precision_dct, "neighbors/precision", global_step, run)
-    log_precision_dct(neigbors_recall_dct, "neighbors/recall", global_step, run)
 
     # Thresholds
     best_thresh = None

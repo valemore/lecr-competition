@@ -21,7 +21,6 @@ if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument("--bienc_path", required=True, type=str)
     parser.add_argument("--tokenizer_path", required=True, type=str)
-    parser.add_argument("--thresh", required=True, type=float)
     parser.add_argument("--out", required=True, type=str)
     parser.add_argument("--num_neighbors", type=int)
     parser.add_argument("--batch_size", type=int, default=128)
@@ -47,8 +46,8 @@ if __name__ == "__main__":
     content2text = get_content2text(content_df)
     topic_ids = corr_df["topic_id"]
 
-    print(f"Generating Cross-Encoder training data from {args.bienc_path} and {args.tokenizer_path}...")
-    print(f"Using {CFG.NUM_NEIGHBORS} neigbors and threshold {args.thresh}")
+    print(f"Generating Cross-Encoder training data from {args.bienc_path} and {args.tokenizer_path}.")
+    print(f"Using {CFG.NUM_NEIGHBORS} neigbors...")
 
     nn_model = embed_and_nn(bienc, content_ids, content2text, CFG.NUM_NEIGHBORS, CFG.batch_size, device)
     distances, indices = entities_inference(topic_ids, bienc, nn_model, topic2text, device, CFG.batch_size)
@@ -56,9 +55,11 @@ if __name__ == "__main__":
     t2gold = get_topic_id_gold(corr_df)
 
     negative_ids = []
-    for topic_id, pred_idxs, dists in zip(topic_ids, indices, distances):
+    for topic_id, pred_idxs in zip(topic_ids, indices):
         gold = t2gold[topic_id]
-        negatives = [i2c[pred_idx] for pred_idx, dist in zip(pred_idxs, dists) if i2c[pred_idx] not in gold and dist <= args.thresh]
+        negatives = [i2c[pred_idx] for pred_idx in pred_idxs if i2c[pred_idx] not in gold]
+        if not negatives and len(gold) < CFG.NUM_NEIGHBORS:
+            raise Exception
         negative_ids.append(" ".join(negatives))
     gen_df = corr_df.copy()
     gen_df["cands"] = negative_ids
