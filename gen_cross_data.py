@@ -77,7 +77,6 @@ if __name__ == "__main__":
         source_files=["**/*.py", "*.py"])
     run["bienc_path"] = args.bienc_path
     run["tokenizer_path"] = args.tokenizer_path
-    run["thresh"] = args.thresh
     run["num_neigbors"] = CFG.NUM_NEIGHBORS
     run["out"] = args.out
     run["positive_class_ratio"] = class_ratio

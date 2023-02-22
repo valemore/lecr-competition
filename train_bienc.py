@@ -202,16 +202,13 @@ def main():
         scaler = GradScaler(enabled=not CFG.use_fp)
 
         # Prepare logging and saving
-        run_start = datetime.utcnow().strftime("%m%d-%H%M%S")
-        run_id = f"{CFG.experiment_name}_{run_start}"
         run = neptune.init_run(
             project="vmorelli/kolibri",
             source_files=["**/*.py", "*.py"])
         run["parameters"] = to_config_dct(CFG)
         run["fold_idx"] = fold_idx
         run["part"] = "bienc"
-        run["run_start"] = run_start
-        run["run_id"] = run_id
+        run_id = f'{CFG.experiment_name}_{run["sys/id"].fetch()}'
 
         # Train
         global_step = 0
@@ -238,6 +235,8 @@ def main():
         tokenizer.tokenizer.save_pretrained(output_dir / f"{run_id}" / "tokenizer")
 
         fold_idx += 1
+
+    return {"run_id": run_id, "CFG": to_config_dct(CFG)}
 
 
 if __name__ == "__main__":
