@@ -11,14 +11,14 @@ from bienc.tokenizer import tokenize
 class BiencDataset(Dataset):
     """Biencoder dataset to be used for training."""
     def __init__(self,
-                 topic_ids: Iterable[str], topic_content_ids: Iterable[Iterable[str]],
+                 topic_ids: Iterable[str], topic_content_ids: Iterable[str],
                  topic2text: Dict[str, str], content2text: Dict[str, str],
                  topic_num_tokens: int, content_num_tokens: int,
                  t2i: Dict[str, int], c2i: Dict[str, int]):
         """
         Training dataset for the bi-encoder embedding content and topic texts into the same space.
         :param topic_ids: iterable over topic ids
-        :param topic_content_ids: iterable of iterable over content ids
+        :param topic_content_ids: iterable over concatenated content ids
         :param topic2text: dictionary mapping topic to its text representation
         :param content2text: dictionary mapping content to its text representation
         :param topic_num_tokens: how many tokens to use for topic representation

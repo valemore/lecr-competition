@@ -4,22 +4,22 @@ import torch
 from torch.utils.data import Dataset
 from tqdm import tqdm
 
-from bienc.tokenizer import tokenize, tokenize_cross
+from bienc.tokenizer import tokenize_cross
 
 
 class PositivesNegativesDataset(Dataset):
     """Dataset with positives and negatives to be used for crossencoder training."""
     def __init__(self,
                  topic_ids: Iterable[str],
-                 topic_positive_ids: Iterable[Iterable[str]],
-                 topic_negative_ids: Iterable[Iterable[str]],
+                 topic_positive_ids: Iterable[str],
+                 topic_negative_ids: Iterable[str],
                  topic2text: Dict[str, str], content2text: Dict[str, str],
                  num_tokens: int):
         """
         Training dataset for the bi-encoder embedding content and topic texts into the same space.
         :param topic_ids: iterable over topic ids
-        :param topic_positive_ids: iterable of iterable over positive content ids
-        :param topic_negative_ids: iterable of iterable over negative content ids
+        :param topic_positive_ids: iterable over concatenated positive content ids
+        :param topic_negative_ids: iterable over concatenated negative content ids
         :param topic2text: dictionary mapping topic to its text representation
         :param content2text: dictionary mapping content to its text representation
         :param num_tokens: how many tokens to use for joint representation
