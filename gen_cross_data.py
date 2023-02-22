@@ -70,6 +70,7 @@ if __name__ == "__main__":
 
     # Log
     run_start = datetime.utcnow().strftime("%m%d-%H%M%S")
+    run_id = f"{CFG.experiment_name}_{run_start}"
     run = neptune.init_run(
         project="vmorelli/kolibri",
         source_files=["**/*.py", "*.py"])
@@ -80,3 +81,5 @@ if __name__ == "__main__":
     run["out"] = args.out
     run["positive_class_ratio"] = class_ratio
     run["part"] = "gen"
+    run["run_start"] = run_start
+    run["run_id"] = run_id

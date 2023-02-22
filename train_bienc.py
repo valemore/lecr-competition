@@ -203,12 +203,15 @@ def main():
 
         # Prepare logging and saving
         run_start = datetime.utcnow().strftime("%m%d-%H%M%S")
+        run_id = f"{CFG.experiment_name}_{run_start}"
         run = neptune.init_run(
             project="vmorelli/kolibri",
             source_files=["**/*.py", "*.py"])
         run["parameters"] = to_config_dct(CFG)
         run["fold_idx"] = fold_idx
         run["part"] = "bienc"
+        run["run_start"] = run_start
+        run["run_id"] = run_id
 
         # Train
         global_step = 0
@@ -229,10 +232,10 @@ def main():
                                    global_step, run)
 
         # Save artifacts
-        (output_dir / f"{CFG.experiment_name}_{run_start}" / "bienc").mkdir(parents=True, exist_ok=True)
-        (output_dir / f"{CFG.experiment_name}_{run_start}" / "tokenizer").mkdir(parents=True, exist_ok=True)
-        model.content_encoder.encoder.save_pretrained(output_dir / f"{CFG.experiment_name}_{run_start}" / "bienc")
-        tokenizer.tokenizer.save_pretrained(output_dir / f"{CFG.experiment_name}_{run_start}" / "tokenizer")
+        (output_dir / f"{run_id}" / "bienc").mkdir(parents=True, exist_ok=True)
+        (output_dir / f"{run_id}" / "tokenizer").mkdir(parents=True, exist_ok=True)
+        model.content_encoder.encoder.save_pretrained(output_dir / f"{run_id}" / "bienc")
+        tokenizer.tokenizer.save_pretrained(output_dir / f"{run_id}" / "tokenizer")
 
         fold_idx += 1
 

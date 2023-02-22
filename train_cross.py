@@ -18,6 +18,7 @@ from torch.cuda.amp import GradScaler
 from torch.optim import AdamW, Optimizer
 from torch.utils.data import DataLoader
 from tqdm import tqdm
+from transformers import AutoModelForSequenceClassification
 
 import bienc.tokenizer as tokenizer
 from bienc.typehints import LossFunction
@@ -82,10 +83,10 @@ def evaluate(model: CrossEncoder, loss_fn: LossFunction, val_loader: DataLoader,
         *model_input, labels = batch
         with torch.no_grad():
             scores = model(*model_input)
-            loss = loss_fn(scores, labels.reshape(-1, 1).float())
+            # loss = loss_fn(scores, labels.reshape(-1, 1).float())
         all_scores.append(scores.cpu().numpy().reshape(-1))
         all_labels.append(labels.cpu().numpy())
-        loss_cumsum += loss.item()
+        # loss_cumsum += loss.item()
         num_batches += 1
 
     all_scores = np.concatenate(all_scores)
@@ -169,20 +170,25 @@ def main():
                                                  topic2text, content2text, CFG.CROSS_NUM_TOKENS)
             val_loader = DataLoader(val_dset, batch_size=CFG.batch_size, num_workers=CFG.NUM_WORKERS, shuffle=False)
 
-        model = CrossEncoder().to(device)
-        loss_fn = nn.BCEWithLogitsLoss().to(device)
+        # model = CrossEncoder().to(device)
+        model = AutoModelForSequenceClassification.from_pretrained(CFG.CROSS_MODEL_NAME, num_labels=2)
+        # loss_fn = nn.BCEWithLogitsLoss().to(device)
+        loss_fn = None
 
         optim = AdamW(model.parameters(), lr=CFG.max_lr, weight_decay=CFG.weight_decay)
         scaler = GradScaler(enabled=CFG.use_amp)
 
         # Prepare logging and saving
         run_start = datetime.utcnow().strftime("%m%d-%H%M%S")
+        run_id = f"{CFG.experiment_name}_{run_start}"
         run = neptune.init_run(
             project="vmorelli/kolibri",
             source_files=["**/*.py", "*.py"])
         run["parameters"] = to_config_dct(CFG)
         run["fold_idx"] = fold_idx
         run["part"] = "cross"
+        run["run_start"] = run_start
+        run["run_id"] = run_id
 
         # Train
         global_step = 0
@@ -200,10 +206,10 @@ def main():
                 # TODO
 
         # Save artifacts
-        (output_dir / f"{CFG.experiment_name}_{run_start}" / "cross").mkdir(parents=True, exist_ok=True)
-        # (output_dir / f"{CFG.experiment_name}_{run_start}" / "tokenizer").mkdir(parents=True, exist_ok=True)
-        model.encoder.save_pretrained(output_dir / f"{CFG.experiment_name}_{run_start}" / "cross")
-        # tokenizer.tokenizer.save_pretrained(output_dir / f"{CFG.experiment_name}_{run_start}" / "tokenizer")
+        (output_dir / f"{run_id}" / "cross").mkdir(parents=True, exist_ok=True)
+        # (output_dir / f"{run_id}" / "tokenizer").mkdir(parents=True, exist_ok=True)
+        model.encoder.save_pretrained(output_dir / f"{run_id}" / "cross")
+        # tokenizer.tokenizer.save_pretrained(output_dir / f"{run_id}" / "tokenizer")
 
         fold_idx += 1
 
