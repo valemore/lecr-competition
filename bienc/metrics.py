@@ -36,8 +36,8 @@ def get_bienc_metrics(distances, indices,
         thresh_tp[~mask] = 0
         num_tp = np.sum(thresh_tp, axis=1)
         num_preds = np.sum(mask, axis=1)
-        prec = num_tp / num_preds
-        rec = num_tp / num_gold
+        prec = num_tp / num_preds if num_preds > 0 else 0.0
+        rec = num_tp / num_gold if num_gold > 0 else 0.0
         prec[np.isnan(prec)] = -1 # because 0 * nan is not 0
         assert np.sum(prec * (rec - prev_rec) < 0) == 0
         avg_prec += prec * (rec - prev_rec)
