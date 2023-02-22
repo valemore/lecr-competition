@@ -26,7 +26,7 @@ class CFG:
     CONTENT_NUM_TOKENS = 128
     SCORE_FN = cos_sim
 
-    NUM_NEIGHBORS = 100
+    NUM_NEIGHBORS = 400
 
     # Cross-Encoder
     CROSS_MODEL_NAME = "bert-base-multilingual-uncased"
