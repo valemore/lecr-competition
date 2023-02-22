@@ -55,7 +55,7 @@ def flatten_content_ids(corr_df: pd.DataFrame) -> List[str]:
 
 def flatten_positive_negative_content_ids(corr_df: pd.DataFrame) -> List[str]:
     """Get flat list of all positive and negative content ids in the correlation DataFrame."""
-    return sorted(list(set([content_id for content_ids in corr_df["content_ids"] for content_id in content_ids.split()] + [content_id for content_ids in corr_df["negative_cands"] for content_id in content_ids.split()])))
+    return sorted(list(set([content_id for content_ids in corr_df["content_ids"] for content_id in content_ids.split()] + [content_id for content_ids in corr_df["cands"] for content_id in content_ids.split()])))
 
 
 def get_content_id_gold(corr_df: pd.DataFrame) -> Dict[str, Set[str]]:

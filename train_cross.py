@@ -6,11 +6,13 @@ from typing import Dict
 import warnings
 
 import neptune.new as neptune
+import numpy as np
 import pandas as pd
 import torch
 import torch.nn as nn
 from neptune.common.deprecation import NeptuneDeprecationWarning
 from neptune.new import Run
+from sklearn.metrics import average_precision_score
 from sklearn.model_selection import KFold
 from torch.cuda.amp import GradScaler
 from torch.optim import AdamW, Optimizer
@@ -67,11 +69,10 @@ def train_one_epoch(model: CrossEncoder, loss_fn: LossFunction, loader: DataLoad
 def evaluate(model: CrossEncoder, loss_fn: LossFunction, val_loader: DataLoader, device: torch.device, global_step: int,
              run: Run) -> Dict[str, float]:
     """Performs in-batch validation."""
-    acc_cumsum = 0.0
+    all_scores = []
+    all_labels = []
     loss_cumsum = 0.0
-    num_examples = 0
     num_batches = 0
-
     model.eval()
     for batch in tqdm(val_loader):
         batch = tuple(x.to(device) for x in batch)
@@ -79,24 +80,27 @@ def evaluate(model: CrossEncoder, loss_fn: LossFunction, val_loader: DataLoader,
         with torch.no_grad():
             scores = model(*model_input)
             loss = loss_fn(scores, labels.reshape(-1, 1).float())
-        bs = scores.shape[0]
-        preds = (scores >= 0.0).int().reshape(-1)
-
-        acc_cumsum += (preds == labels).sum().item()
+        all_scores.append(scores.cpu().numpy().reshape(-1))
+        all_labels.append(labels.cpu().numpy())
         loss_cumsum += loss.item()
-        num_examples += bs
         num_batches += 1
 
-    acc = acc_cumsum / num_examples
+
+    all_scores = np.concatenate(all_scores)
+    all_labels = np.concatenate(all_labels)
+    avg_precision = average_precision_score(all_labels, all_scores) # TODO ???
+    acc = np.mean((all_scores >= 0.0) == all_labels)
     loss = loss_cumsum / num_batches
 
+    print(f"Evaluation avg precision: {avg_precision:.5}")
     print(f"Evaluation accuracy: {acc:.5}")
     print(f"Evaluation loss: {loss:.5}")
 
+    run["val/avg_precision"].log(avg_precision, step=global_step)
     run["val/acc"].log(acc, step=global_step)
     run["val/loss"].log(loss, step=global_step)
 
-    return {"acc": acc, "loss": loss}
+    return {"avg_precision": avg_precision, "acc": acc, "loss": loss}
 
 
 def main():
@@ -107,13 +111,13 @@ def main():
     corr_df = pd.read_csv(CFG.CROSS_CORR_FNAME, keep_default_na=False)
     topics_df = pd.read_csv(CFG.DATA_DIR / "topics.csv")
 
-    # corr_df["negative_cands"] = [" ".join(x.split()[:10]) for x in corr_df["negative_cands"]]
+    # corr_df["cands"] = [" ".join(x.split()[:10]) for x in corr_df["cands"]]
 
     if CFG.tiny:
         corr_df = corr_df.sample(10).reset_index(drop=True)
         content_df = content_df.loc[content_df["id"].isin(set(flatten_positive_negative_content_ids(corr_df))), :].reset_index(drop=True)
 
-    print(f'Positive class ratio: {sum(len(x.split()) for x in corr_df["content_ids"]) / sum(len(x.split()) for x in corr_df["negative_cands"])}')
+    print(f'Positive class ratio: {sum(len(x.split()) for x in corr_df["content_ids"]) / sum(len(x.split()) for x in corr_df["cands"])}')
 
     topics_in_scope = sorted(list(set(corr_df["topic_id"])))
     random.seed(CFG.VAL_SPLIT_SEED)
@@ -132,14 +136,14 @@ def main():
         topic2text = get_topic2text(topics_df)
         content2text = get_content2text(content_df)
 
-        train_dset = PositivesNegativesDataset(train_corr_df["topic_id"], train_corr_df["content_ids"], train_corr_df["negative_cands"],
+        train_dset = PositivesNegativesDataset(train_corr_df["topic_id"], train_corr_df["content_ids"], train_corr_df["cands"],
                                                topic2text, content2text, CFG.CROSS_NUM_TOKENS)
         train_loader = DataLoader(train_dset, batch_size=CFG.batch_size, num_workers=CFG.NUM_WORKERS, shuffle=True)
 
         if CFG.folds != "no":
             val_topics = set(topics_in_scope[idx] for idx in topics_in_scope_val_idxs)
             val_corr_df = corr_df.loc[corr_df["topic_id"].isin(val_topics), :].reset_index(drop=True)
-            val_dset = PositivesNegativesDataset(val_corr_df["topic_id"], val_corr_df["content_ids"], val_corr_df["negative_cands"],
+            val_dset = PositivesNegativesDataset(val_corr_df["topic_id"], val_corr_df["content_ids"], val_corr_df["cands"],
                                                  topic2text, content2text, CFG.CROSS_NUM_TOKENS)
             val_loader = DataLoader(val_dset, batch_size=CFG.batch_size, num_workers=CFG.NUM_WORKERS, shuffle=False)
 
@@ -156,6 +160,7 @@ def main():
             source_files=["**/*.py", "*.py"])
         run["parameters"] = to_config_dct(CFG)
         run["fold_idx"] = fold_idx
+        run["part"] = "cross"
 
         # Train
         global_step = 0

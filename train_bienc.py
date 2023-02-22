@@ -208,6 +208,7 @@ def main():
             source_files=["**/*.py", "*.py"])
         run["parameters"] = to_config_dct(CFG)
         run["fold_idx"] = fold_idx
+        run["part"] = "bienc"
 
         # Train
         global_step = 0
