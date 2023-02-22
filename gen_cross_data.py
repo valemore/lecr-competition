@@ -21,7 +21,7 @@ if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument("--bienc_path", required=True, type=str)
     parser.add_argument("--tokenizer_path", required=True, type=str)
-    parser.add_argument("--out", required=True, type=str)
+    parser.add_argument("--out", type=str)
     parser.add_argument("--num_neighbors", type=int)
     parser.add_argument("--batch_size", type=int, default=128)
     # parser.add_argument("--out", type=str, default="../data/cross_corr.csv")
@@ -30,8 +30,13 @@ if __name__ == "__main__":
 
     if args.num_neighbors is not None:
         CFG.NUM_NEIGHBORS = args.num_neighbors
-    CFG.batch_size = args.batch_size
+    bienc_run_id = Path(args.bienc_path).parent.name
+    if args.out is None:
+        cross_dir = Path("../cross")
+        cross_dir.mkdir(exist_ok=True, parents=True)
+        args.out = str(cross_dir / f"{bienc_run_id}.csv")
     out_fname = Path(args.out)
+    CFG.batch_size = args.batch_size
 
     bienc = get_biencoder(args.bienc_path, device)
     init_tokenizer(args.tokenizer_path)
@@ -70,8 +75,6 @@ if __name__ == "__main__":
     print(f"Saved to: {str(out_fname)}")
 
     # Log
-    run_start = datetime.utcnow().strftime("%m%d-%H%M%S")
-    run_id = f"{CFG.experiment_name}_{run_start}"
     run = neptune.init_run(
         project="vmorelli/kolibri",
         source_files=["**/*.py", "*.py"])
@@ -81,5 +84,4 @@ if __name__ == "__main__":
     run["out"] = args.out
     run["positive_class_ratio"] = class_ratio
     run["part"] = "gen"
-    run["run_start"] = run_start
-    run["run_id"] = run_id
+    run["bienc_run_id"] = bienc_run_id
