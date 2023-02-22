@@ -9,7 +9,6 @@ import neptune.new as neptune
 import numpy as np
 import pandas as pd
 import torch
-import torch.nn as nn
 from neptune.common.deprecation import NeptuneDeprecationWarning
 from neptune.new import Run
 from sklearn.metrics import average_precision_score
@@ -21,7 +20,6 @@ from tqdm import tqdm
 from transformers import AutoModelForSequenceClassification
 
 import bienc.tokenizer as tokenizer
-from bienc.typehints import LossFunction
 from config import CFG, to_config_dct
 from cross.dset import PositivesNegativesDataset
 from cross.model import CrossEncoder
@@ -36,7 +34,7 @@ warnings.filterwarnings("error", category=NeptuneDeprecationWarning)
 tokenizer.init_tokenizer()
 
 
-def train_one_epoch(model: CrossEncoder, loss_fn: LossFunction, loader: DataLoader, device: torch.device,
+def train_one_epoch(model: CrossEncoder, loader: DataLoader, device: torch.device,
                     optim: Optimizer, scheduler, use_amp: bool, scaler: GradScaler, global_step: int, run: Run) -> int:
     """Train one epoch of Cross-Encoder."""
     step = global_step
@@ -46,7 +44,6 @@ def train_one_epoch(model: CrossEncoder, loss_fn: LossFunction, loader: DataLoad
         *model_input, labels = batch
         with torch.cuda.amp.autocast(enabled=use_amp):
             out = model(*model_input, labels=labels)
-            # loss = loss_fn(scores, labels.reshape(-1, 1).float())
 
         loss = out.loss
         scaler.scale(loss).backward()
@@ -71,7 +68,7 @@ def train_one_epoch(model: CrossEncoder, loss_fn: LossFunction, loader: DataLoad
 CROSS_EVAL_THRESHS = [round(x, 2) for x in np.arange(-0.2, 0.2, 0.02)]
 
 
-def evaluate(model: CrossEncoder, loss_fn: LossFunction, val_loader: DataLoader, device: torch.device, num_gold: int,
+def evaluate(model: CrossEncoder, val_loader: DataLoader, device: torch.device, num_gold: int,
              global_step: int, run: Run) -> Dict[str, float]:
     """Performs in-batch validation."""
     all_probs = []
@@ -84,18 +81,17 @@ def evaluate(model: CrossEncoder, loss_fn: LossFunction, val_loader: DataLoader,
         *model_input, labels = batch
         with torch.no_grad():
             out = model(*model_input, labels=labels)
-            # loss = loss_fn(scores, labels.reshape(-1, 1).float())
         logits = out.logits
         probs = logits.softmax(dim=1)[:, 1]
         all_probs.append(probs.cpu().numpy().reshape(-1))
         all_labels.append(labels.cpu().numpy())
-        # loss_cumsum += loss.item()
+        loss_cumsum += out.loss.item()
         num_batches += 1
 
     all_probs = np.concatenate(all_probs)
     all_labels = np.concatenate(all_labels)
     avg_precision = average_precision_score(all_labels, all_probs) # TODO ???
-    acc = np.mean(all_probs >= 0.0)
+    acc = np.mean((all_probs >= 0.0) == all_labels).item()
     loss = loss_cumsum / num_batches
 
     print(f"Evaluation avg precision: {avg_precision:.5}")
@@ -174,38 +170,35 @@ def main():
                                                  topic2text, content2text, CFG.CROSS_NUM_TOKENS)
             val_loader = DataLoader(val_dset, batch_size=CFG.batch_size, num_workers=CFG.NUM_WORKERS, shuffle=False)
 
-        # model = CrossEncoder().to(device)
         model = AutoModelForSequenceClassification.from_pretrained(CFG.CROSS_MODEL_NAME, num_labels=2).to(device)
-        # loss_fn = nn.BCEWithLogitsLoss().to(device)
-        loss_fn = None
 
         optim = AdamW(model.parameters(), lr=CFG.max_lr, weight_decay=CFG.weight_decay)
         scaler = GradScaler(enabled=CFG.use_amp)
 
         # Prepare logging and saving
         run_start = datetime.utcnow().strftime("%m%d-%H%M%S")
-        run_id = f"{CFG.experiment_name}_{run_start}"
         run = neptune.init_run(
             project="vmorelli/kolibri",
             source_files=["**/*.py", "*.py"])
+        run_id = f'{CFG.experiment_name}_{run["sys/id"].fetch()}'
+        run["run_id"] = run_id
         run["parameters"] = to_config_dct(CFG)
         run["fold_idx"] = fold_idx
         run["part"] = "cross"
         run["run_start"] = run_start
-        run["run_id"] = run_id
         run["positive_class_ratio"] = class_ratio
 
         # Train
         global_step = 0
         for epoch in tqdm(range(CFG.num_epochs)):
             print(f"Training epoch {epoch}...")
-            global_step = train_one_epoch(model, loss_fn, train_loader, device, optim, None, CFG.use_amp, scaler,
+            global_step = train_one_epoch(model, train_loader, device, optim, None, CFG.use_amp, scaler,
                                           global_step, run)
 
             if CFG.folds != "no":
                 # Loss and in-batch accuracy for training validation set
                 print(f"Evaluating epoch {epoch}...")
-                evaluate(model, loss_fn, val_loader, device, val_num_gold, global_step, run)
+                evaluate(model, val_loader, device, val_num_gold, global_step, run)
 
                 # Evaluate inference
                 # TODO

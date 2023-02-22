@@ -1,5 +1,4 @@
 from argparse import ArgumentParser
-from datetime import datetime
 from pathlib import Path
 import random
 from typing import Dict
@@ -26,7 +25,8 @@ from bienc.model import Biencoder, BiencoderModule
 from bienc.losses import BidirectionalMarginLoss
 from metrics import get_fscore
 from utils import get_learning_rate_momentum, flatten_content_ids, are_entity_ids_aligned, get_topic_id_gold
-from bienc.metrics import get_bienc_metrics, log_precision_dct, BIENC_STANDALONE_THRESHS, get_log_mir_metrics
+from bienc.metrics import get_bienc_metrics, log_precision_dct, BIENC_STANDALONE_THRESHS
+
 
 tokenizer.init_tokenizer()
 
@@ -125,8 +125,7 @@ def evaluate_inference(encoder: BiencoderModule, device: torch.device, batch_siz
 
     # Rank metrics
     t2gold = get_topic_id_gold(corr_df)
-    get_log_mir_metrics(indices, data_ids, e2i, t2gold, global_step, run)
-    precision_dct, recall_dct, avg_precision = get_bienc_metrics(indices, data_ids, e2i, t2gold)
+    precision_dct, recall_dct, avg_precision = get_bienc_metrics(distances, indices, data_ids, e2i, t2gold)
     print(f"Mean average precision @ {CFG.NUM_NEIGHBORS}: {avg_precision:.5}")
     run["val/avg_precision"].log(avg_precision, step=global_step)
     log_precision_dct(precision_dct, "val/precision", global_step, run)
@@ -205,10 +204,11 @@ def main():
         run = neptune.init_run(
             project="vmorelli/kolibri",
             source_files=["**/*.py", "*.py"])
+        run_id = f'{CFG.experiment_name}_{run["sys/id"].fetch()}'
+        run["run_id"] = run_id
         run["parameters"] = to_config_dct(CFG)
         run["fold_idx"] = fold_idx
         run["part"] = "bienc"
-        run_id = f'{CFG.experiment_name}_{run["sys/id"].fetch()}'
 
         # Train
         global_step = 0
