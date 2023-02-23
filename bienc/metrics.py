@@ -6,7 +6,7 @@ import numpy as np
 from neptune.new import Run
 
 from typehints import MetricDict
-
+from utils import safe_div_np
 
 BIENC_EVAL_THRESHS = [round(x, 2) for x in np.arange(0.2, 0.62, 0.02)] + [math.inf]
 BIENC_STANDALONE_THRESHS = [round(x, 2) for x in np.arange(0.1, 0.52, 0.02)]
@@ -21,11 +21,12 @@ def get_bienc_metrics(distances, indices,
         gold = t2gold[topic_id]
         tp[i, :] = np.array([int(i2e[idx] in gold) for idx in idxs], dtype=int)
         num_gold[i] = len(gold)
+    total_gold = np.sum(num_gold)
 
 
     precision_dct = {thresh: 0.0 for thresh in BIENC_EVAL_THRESHS}
     recall_dct = {thresh: 0.0 for thresh in BIENC_EVAL_THRESHS}
-    macro_prec_dct = {thresh: 0.0 for thresh in BIENC_EVAL_THRESHS}
+    micro_prec_dct = {thresh: 0.0 for thresh in BIENC_EVAL_THRESHS}
     pcr_dct = {thresh: 0.0 for thresh in BIENC_EVAL_THRESHS}
 
     avg_prec = np.zeros(len(topic_ids), dtype=float) # accumulating average precision for all topic ids
@@ -36,20 +37,20 @@ def get_bienc_metrics(distances, indices,
         thresh_tp[~mask] = 0
         num_tp = np.sum(thresh_tp, axis=1)
         num_preds = np.sum(mask, axis=1)
-        prec = num_tp / num_preds if num_preds > 0 else 0.0
-        rec = num_tp / num_gold if num_gold > 0 else 0.0
+        prec = safe_div_np(num_tp, num_preds)
+        rec = safe_div_np(num_tp, num_gold)
         prec[np.isnan(prec)] = 0.0 # because 0 * nan is not 0
         assert np.sum(prec * (rec - prev_rec) < 0) == 0
         avg_prec += prec * (rec - prev_rec)
         prev_rec = rec
         precision_dct[thresh] = np.mean(prec)
         recall_dct[thresh] = np.mean(rec)
-        macro_prec_dct[thresh] = np.sum(thresh_tp, axis=None) / np.sum(mask, axis=None)
-        pcr_dct[thresh] = num_gold / (np.sum(1 - thresh_tp, axis=None) + num_gold)
+        micro_prec_dct[thresh] = np.sum(thresh_tp, axis=None) / np.sum(mask, axis=None)
+        pcr_dct[thresh] = total_gold / (np.sum((1 - thresh_tp) * mask, axis=None) + total_gold)
     avg_precision = np.mean(avg_prec)
-    return precision_dct, recall_dct, macro_prec_dct, pcr_dct, avg_precision.item()
+    return precision_dct, recall_dct, micro_prec_dct, pcr_dct, avg_precision.item()
 
 
-def log_precision_dct(dct: Dict[int, float], label: str, global_step: int, run: Run):
+def log_dct(dct: Dict[int, float], label: str, global_step: int, run: Run):
     for k, v in dct.items():
         run[f"{label}@{k}"].log(v, step=global_step)
