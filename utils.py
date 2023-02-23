@@ -117,14 +117,14 @@ def sanity_check_inputs(content_df, corr_df, topics_df):
 
 
 def safe_div(num, den):
-    """Returns 0.0 if den is zero. Used for precision and recall computation."""
+    """Returns 0.0 if den is zero. Used for precision computation."""
     if den == 0.0:
         return 0.0
     return float(num) / float(den)
 
 
 def safe_div_np(num, den):
-    """Safe division for numpy arrays. Output has same shape as inputs and is zero where denominator is zero."""
+    """Safe division for numpy arrays. Output has same shape as inputs and is zero where denominator is zero. Used for precision computation."""
     mask = den == 0.0
     den[mask] = 1.0
     out = num / den

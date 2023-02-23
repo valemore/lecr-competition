@@ -25,8 +25,8 @@ from bienc.model import Biencoder, BiencoderModule
 from bienc.losses import BidirectionalMarginLoss
 from metrics import get_fscore
 from utils import get_learning_rate_momentum, flatten_content_ids, are_entity_ids_aligned, get_topic_id_gold
-from bienc.metrics import get_bienc_thresh_metrics, log_dct, BIENC_STANDALONE_THRESHS, get_log_mir_metrics, get_bienc_cands_metrics
-
+from bienc.metrics import get_bienc_thresh_metrics, log_dct, BIENC_STANDALONE_THRESHS, get_log_mir_metrics, \
+    get_bienc_cands_metrics, get_avg_precision
 
 tokenizer.init_tokenizer()
 
@@ -127,7 +127,8 @@ def evaluate_inference(encoder: BiencoderModule, device: torch.device, batch_siz
     t2gold = get_topic_id_gold(corr_df)
 
     # Thresh metrics
-    precision_dct, recall_dct, micro_prec_dct, pcr_dct, avg_precision = get_bienc_thresh_metrics(distances, indices, data_ids, e2i, t2gold)
+    precision_dct, recall_dct, micro_prec_dct, pcr_dct = get_bienc_thresh_metrics(distances, indices, data_ids, e2i, t2gold)
+    avg_precision = get_avg_precision(precision_dct, recall_dct)
     print(f"Mean average precision @ {CFG.NUM_NEIGHBORS}: {avg_precision:.5}")
     run["val/avg_precision"].log(avg_precision, step=global_step)
     log_dct(precision_dct, "val/precision", global_step, run)
@@ -137,7 +138,8 @@ def evaluate_inference(encoder: BiencoderModule, device: torch.device, batch_siz
 
     # Cands metrics
     get_log_mir_metrics(indices, data_ids, e2i, t2gold, global_step, run)
-    precision_dct, recall_dct, micro_prec_dct, pcr_dct, avg_precision = get_bienc_cands_metrics(indices, data_ids, e2i, t2gold, 100)
+    precision_dct, recall_dct, micro_prec_dct, pcr_dct = get_bienc_cands_metrics(indices, data_ids, e2i, t2gold, 100)
+    avg_precision = get_avg_precision(precision_dct, recall_dct)
     print(f"Mean average precision (cands) @ {CFG.NUM_NEIGHBORS}: {avg_precision:.5}")
     run["cands/avg_precision"].log(avg_precision, step=global_step)
     log_dct(precision_dct, "cands/precision", global_step, run)

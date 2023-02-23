@@ -14,7 +14,7 @@ BIENC_STANDALONE_THRESHS = [round(x, 2) for x in np.arange(0.1, 0.52, 0.02)]
 
 
 def get_bienc_thresh_metrics(distances, indices,
-                             topic_ids: List[str], e2i: Dict[str, int], t2gold: Dict[str, Set[str]]) -> Tuple[MetricDict, MetricDict, MetricDict, MetricDict, float]:
+                             topic_ids: List[str], e2i: Dict[str, int], t2gold: Dict[str, Set[str]]) -> Tuple[MetricDict, MetricDict, MetricDict, MetricDict]:
     i2e = {entity_idx: entity_id for entity_id, entity_idx in e2i.items()}
     tp = np.empty_like(indices, dtype=int) # mask indicating whether prediction is a true positive
     num_gold = np.empty(len(topic_ids), dtype=int) # how many content ids are in gold?
@@ -30,8 +30,6 @@ def get_bienc_thresh_metrics(distances, indices,
     micro_prec_dct = {thresh: 0.0 for thresh in BIENC_EVAL_THRESHS}
     pcr_dct = {thresh: 0.0 for thresh in BIENC_EVAL_THRESHS}
 
-    avg_prec = np.zeros(len(topic_ids), dtype=float) # accumulating average precision for all topic ids
-    prev_rec = np.zeros(len(topic_ids), dtype=float) # previous recall
     for thresh in BIENC_EVAL_THRESHS:
         mask = distances <= thresh
         thresh_tp = np.copy(tp)
@@ -39,17 +37,18 @@ def get_bienc_thresh_metrics(distances, indices,
         num_tp = np.sum(thresh_tp, axis=1)
         num_preds = np.sum(mask, axis=1)
         prec = safe_div_np(num_tp, num_preds)
-        rec = safe_div_np(num_tp, num_gold)
-        prec[np.isnan(prec)] = 0.0 # because 0 * nan is not 0
-        assert np.sum(prec * (rec - prev_rec) < 0) == 0
-        avg_prec += prec * (rec - prev_rec)
-        prev_rec = rec
+        rec = num_tp / num_gold
         precision_dct[thresh] = np.mean(prec)
         recall_dct[thresh] = np.mean(rec)
-        micro_prec_dct[thresh] = np.sum(thresh_tp, axis=None) / np.sum(mask, axis=None)
-        pcr_dct[thresh] = total_gold / (np.sum((1 - thresh_tp) * mask, axis=None) + total_gold)
-    avg_precision = np.mean(avg_prec)
-    return precision_dct, recall_dct, micro_prec_dct, pcr_dct, avg_precision.item()
+
+        num_tp_all = np.sum(thresh_tp)      # total true positive over all topic ids
+        num_preds_all = np.sum(mask)        # total predictions over all topic ids
+        num_fp_all = np.sum((1 - thresh_tp) * mask, axis=None)
+        # Micro precision: Not per sample (i.e. per topic id), but looking at every topic-content pair individually
+        micro_prec_dct[thresh] = num_tp_all / num_preds_all
+        # Positive class ratio: What we expect the positive class ratio to be in gen_cross_data
+        pcr_dct[thresh] = total_gold / (num_fp_all + total_gold)
+    return precision_dct, recall_dct, micro_prec_dct, pcr_dct
 
 
 def log_dct(dct: Dict[int, float], label: str, global_step: int, run: Run):
@@ -57,7 +56,20 @@ def log_dct(dct: Dict[int, float], label: str, global_step: int, run: Run):
         run[f"{label}@{k}"].log(v, step=global_step)
 
 
-def get_bienc_cands_metrics(indices, topic_ids: List[str], e2i: Dict[str, int], t2gold: Dict[str, Set[str]], num_cands: int) -> Tuple[MetricDict, MetricDict, MetricDict, MetricDict, float]:
+def get_avg_precision(precision_dct: MetricDict, recall_dct: MetricDict) -> float:
+    """Get average precision over all keys in PRECISION_DCT and RECALL_DCT."""
+    keys = sorted(precision_dct.keys())
+    assert len(keys) == len(recall_dct.keys()), "Keys in metric dicts do not match!"
+    acc = 0.0
+    prev_rec = 0.0
+    for k in keys:
+        prec, rec = precision_dct[k], recall_dct[k]
+        acc += prec * (rec - prev_rec)
+        prev_rec = rec
+    return acc
+
+
+def get_bienc_cands_metrics(indices, topic_ids: List[str], e2i: Dict[str, int], t2gold: Dict[str, Set[str]], num_cands: int) -> Tuple[MetricDict, MetricDict, MetricDict, MetricDict]:
     i2e = {entity_idx: entity_id for entity_id, entity_idx in e2i.items()}
     tp = np.empty_like(indices, dtype=int) # mask indicating whether prediction is a true positive
     num_gold = np.empty(len(topic_ids), dtype=int) # how many content ids are in gold?
@@ -66,27 +78,28 @@ def get_bienc_cands_metrics(indices, topic_ids: List[str], e2i: Dict[str, int], 
         tp[i, :] = np.array([int(i2e[idx] in gold) for idx in idxs], dtype=int)
         num_gold[i] = len(gold)
 
-    effective_num_cands_range = list(range(1, num_cands + 1)) + [CFG.NUM_NEIGHBORS]
+    effective_num_cands_range = list(range(1, num_cands + 1)) + ([CFG.NUM_NEIGHBORS] if num_cands < CFG.NUM_NEIGHBORS else [])
     precision_dct = {num_cands: 0.0 for num_cands in effective_num_cands_range}
     recall_dct = {num_cands: 0.0 for num_cands in effective_num_cands_range}
     micro_prec_dct = {num_cands: 0.0 for num_cands in effective_num_cands_range}
     pcr_dct = {num_cands: 0.0 for num_cands in effective_num_cands_range}
-    avg_prec = np.zeros(len(topic_ids), dtype=float) # accumulating average precision for all topic ids
 
     acc_tp = np.zeros(len(topic_ids), dtype=float) # accumulating true positives for all topic ids
-    prev_rec = np.zeros(len(topic_ids), dtype=float) # previous recall
-    for j, num_cands in enumerate(effective_num_cands_range):
-        acc_tp += tp[:, j]
+    for num_cands in effective_num_cands_range:
+        acc_tp += tp[:, num_cands - 1]
         prec = acc_tp / num_cands
         rec = acc_tp / num_gold
-        avg_prec += prec * (rec - prev_rec)
-        prev_rec = rec
         precision_dct[num_cands] = np.mean(prec)
         recall_dct[num_cands] = np.mean(rec)
-        micro_prec_dct[num_cands] = np.sum(acc_tp) / (len(topic_ids) * num_cands)
-        pcr_dct[num_cands] = np.sum(num_gold) / ( len(topic_ids) * num_cands - np.sum(acc_tp) + np.sum(num_gold))
-    avg_precision = np.mean(avg_prec).item()
-    return precision_dct, recall_dct, micro_prec_dct, pcr_dct, avg_precision
+
+        num_preds = len(topic_ids) * num_cands      # total predictions over all topic_ids
+        num_fp = num_preds - np.sum(acc_tp)         # total false positive over all topic_ids
+        num_gold_all =  np.sum(num_gold)            # total gold contents over all topic_ids
+        # Micro precision: Not per sample (i.e. per topic id), but looking at every topic-content pair individually
+        micro_prec_dct[num_cands] = np.sum(acc_tp) / num_preds
+        # Positive class ratio: What we expect the positive class ratio to be in gen_cross_data
+        pcr_dct[num_cands] = num_gold_all / ( num_fp + num_gold_all)
+    return precision_dct, recall_dct, micro_prec_dct, pcr_dct
 
 
 def get_min_max_ranks(indices, data_ids: List[str], data2gold: Dict[str, Set[str]], e2i: Dict[str, int]):
@@ -133,5 +146,5 @@ def get_log_mir_metrics(indices,
     print(f"Evaluation inference mode mean inverse min rank: {min_mir:.5}")
     print(f"Evaluation inference mode mean inverse max rank: {max_mir:.5}")
 
-    run["val/min_mir"].log(min_mir, step=global_step)
-    run["val/max_mir"].log(max_mir, step=global_step)
+    run["cands/min_mir"].log(min_mir, step=global_step)
+    run["cands/max_mir"].log(max_mir, step=global_step)
