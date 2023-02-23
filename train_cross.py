@@ -9,6 +9,7 @@ import neptune.new as neptune
 import numpy as np
 import pandas as pd
 import torch
+import torch.nn as nn
 from neptune.common.deprecation import NeptuneDeprecationWarning
 from neptune.new import Run
 from sklearn.metrics import average_precision_score
@@ -17,9 +18,9 @@ from torch.cuda.amp import GradScaler
 from torch.optim import AdamW, Optimizer
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-from transformers import AutoModelForSequenceClassification
 
 import bienc.tokenizer as tokenizer
+from bienc.typehints import LossFunction
 from config import CFG, to_config_dct
 from cross.dset import PositivesNegativesDataset
 from cross.model import CrossEncoder
@@ -34,7 +35,7 @@ warnings.filterwarnings("error", category=NeptuneDeprecationWarning)
 tokenizer.init_tokenizer()
 
 
-def train_one_epoch(model: CrossEncoder, loader: DataLoader, device: torch.device,
+def train_one_epoch(model: CrossEncoder, loss_fn: LossFunction, loader: DataLoader, device: torch.device,
                     optim: Optimizer, scheduler, use_amp: bool, scaler: GradScaler, global_step: int, run: Run) -> int:
     """Train one epoch of Cross-Encoder."""
     step = global_step
@@ -43,9 +44,9 @@ def train_one_epoch(model: CrossEncoder, loader: DataLoader, device: torch.devic
         batch = tuple(x.to(device) for x in batch)
         *model_input, labels = batch
         with torch.cuda.amp.autocast(enabled=use_amp):
-            out = model(*model_input, labels=labels)
+            logits = model(*model_input)
+            loss = loss_fn(logits, labels)
 
-        loss = out.loss
         scaler.scale(loss).backward()
         scaler.step(optim)
         scaler.update()
@@ -68,7 +69,7 @@ def train_one_epoch(model: CrossEncoder, loader: DataLoader, device: torch.devic
 CROSS_EVAL_THRESHS = [round(x, 2) for x in np.arange(-0.2, 0.2, 0.02)]
 
 
-def evaluate(model: CrossEncoder, val_loader: DataLoader, device: torch.device, num_gold: int,
+def evaluate(model: CrossEncoder, loss_fn: LossFunction, val_loader: DataLoader, device: torch.device, num_gold: int,
              global_step: int, run: Run) -> Dict[str, float]:
     """Performs in-batch validation."""
     all_probs = []
@@ -80,12 +81,12 @@ def evaluate(model: CrossEncoder, val_loader: DataLoader, device: torch.device, 
         batch = tuple(x.to(device) for x in batch)
         *model_input, labels = batch
         with torch.no_grad():
-            out = model(*model_input, labels=labels)
-        logits = out.logits
+            logits = model(*model_input)
+            loss = loss_fn(logits, labels)
         probs = logits.softmax(dim=1)[:, 1]
         all_probs.append(probs.cpu().numpy().reshape(-1))
         all_labels.append(labels.cpu().numpy())
-        loss_cumsum += out.loss.item()
+        loss_cumsum += loss.item()
         num_batches += 1
 
     all_probs = np.concatenate(all_probs)
@@ -170,7 +171,8 @@ def main():
                                                  topic2text, content2text, CFG.CROSS_NUM_TOKENS)
             val_loader = DataLoader(val_dset, batch_size=CFG.batch_size, num_workers=CFG.NUM_WORKERS, shuffle=False)
 
-        model = AutoModelForSequenceClassification.from_pretrained(CFG.CROSS_MODEL_NAME, num_labels=2).to(device)
+        model = CrossEncoder().to(device)
+        loss_fn = nn.CrossEntropyLoss().to(device)
 
         optim = AdamW(model.parameters(), lr=CFG.max_lr, weight_decay=CFG.weight_decay)
         scaler = GradScaler(enabled=CFG.use_amp)
@@ -192,13 +194,13 @@ def main():
         global_step = 0
         for epoch in tqdm(range(CFG.num_epochs)):
             print(f"Training epoch {epoch}...")
-            global_step = train_one_epoch(model, train_loader, device, optim, None, CFG.use_amp, scaler,
+            global_step = train_one_epoch(model, loss_fn, train_loader, device, optim, None, CFG.use_amp, scaler,
                                           global_step, run)
 
             if CFG.folds != "no":
                 # Loss and in-batch accuracy for training validation set
                 print(f"Evaluating epoch {epoch}...")
-                evaluate(model, val_loader, device, val_num_gold, global_step, run)
+                evaluate(model, loss_fn, val_loader, device, val_num_gold, global_step, run)
 
                 # Evaluate inference
                 # TODO
@@ -206,7 +208,7 @@ def main():
         # Save artifacts
         (output_dir / f"{run_id}" / "cross").mkdir(parents=True, exist_ok=True)
         # (output_dir / f"{run_id}" / "tokenizer").mkdir(parents=True, exist_ok=True)
-        model.save_pretrained(output_dir / f"{run_id}" / "cross")
+        model.save(output_dir / f"{CFG.experiment_name}_{run_start}" / "cross")
         # tokenizer.tokenizer.save_pretrained(output_dir / f"{run_id}" / "tokenizer")
 
         fold_idx += 1

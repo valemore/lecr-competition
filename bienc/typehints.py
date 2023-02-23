@@ -1,7 +1,7 @@
 from typing import Union
 
-from torch.nn import BCELoss
+from torch.nn import BCELoss, CrossEntropyLoss
 
 from bienc.losses import BidirectionalMarginLoss, UnidirectionalMarginLoss
 
-LossFunction = Union[BidirectionalMarginLoss, UnidirectionalMarginLoss, BCELoss]
+LossFunction = Union[BidirectionalMarginLoss, UnidirectionalMarginLoss, CrossEntropyLoss]
