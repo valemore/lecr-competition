@@ -125,11 +125,13 @@ def evaluate_inference(encoder: BiencoderModule, device: torch.device, batch_siz
 
     # Rank metrics
     t2gold = get_topic_id_gold(corr_df)
-    precision_dct, recall_dct, avg_precision = get_bienc_metrics(distances, indices, data_ids, e2i, t2gold)
+    precision_dct, recall_dct, macro_prec_dct, pcr_dct, avg_precision = get_bienc_metrics(distances, indices, data_ids, e2i, t2gold)
     print(f"Mean average precision @ {CFG.NUM_NEIGHBORS}: {avg_precision:.5}")
     run["val/avg_precision"].log(avg_precision, step=global_step)
     log_precision_dct(precision_dct, "val/precision", global_step, run)
     log_precision_dct(recall_dct, "val/recall", global_step, run)
+    log_precision_dct(macro_prec_dct, "val/macro_precision", global_step, run)
+    log_precision_dct(pcr_dct, "val/pcr", global_step, run)
 
     # Thresholds
     best_thresh = None
