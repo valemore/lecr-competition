@@ -27,7 +27,7 @@ from cross.model import CrossEncoder
 from data.content import get_content2text
 from data.topics import get_topic2text
 from metrics import fscore_from_prec_rec
-from utils import get_learning_rate_momentum, flatten_positive_negative_content_ids, get_topic_id_gold
+from utils import get_learning_rate_momentum, flatten_positive_negative_content_ids, get_topic_id_gold, safe_div
 
 warnings.filterwarnings("error", category=NeptuneDeprecationWarning)
 
@@ -109,7 +109,7 @@ def evaluate(model: CrossEncoder, loss_fn: LossFunction, val_loader: DataLoader,
     for thresh in CROSS_EVAL_THRESHS:
         all_preds = all_probs >= thresh
         tp = (all_preds == 1) & (all_labels == 1)
-        prec = np.sum(tp) / np.sum(all_preds)
+        prec = safe_div(np.sum(tp), np.sum(all_preds))
         rec = np.sum(tp) / num_gold
         fscore = fscore_from_prec_rec(prec, rec, 2.0)
         if fscore > best_fscore:

@@ -114,3 +114,10 @@ def sanity_check_inputs(content_df, corr_df, topics_df):
         assert len(content_ids) > 0
         for content_id in content_ids.split():
             assert content_id in content_ids_set
+
+
+def safe_div(num, den):
+    """Returns 0.0 if den is zero. Used for precision computation."""
+    if den == 0.0:
+        return 0.0
+    return float(num) / float(den)
