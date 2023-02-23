@@ -28,6 +28,15 @@ def single_fscore(gold, pred, beta=2.0):
     return fscore_from_prec_rec(prec, rec, beta)
 
 
+def np_fscore(prec, rec, beta=2.0):
+    den = (beta ** 2 * prec) + rec
+    mask = den == 0
+    den[mask] = 1.0
+    out = (1 + beta ** 2) * prec * rec / den
+    out[mask] = 0.0
+    return out
+
+
 def get_fscore(t2gold: Dict[str, Set[str]], t2pred: Dict[str, Set[str]], beta: float = 2.0):
     assert len(t2gold) == len(t2pred)
     score = 0.0

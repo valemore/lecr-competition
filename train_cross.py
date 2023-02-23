@@ -2,7 +2,6 @@ import random
 from argparse import ArgumentParser
 from datetime import datetime
 from pathlib import Path
-from typing import Dict
 import warnings
 
 import neptune.new as neptune
@@ -12,7 +11,6 @@ import torch
 import torch.nn as nn
 from neptune.common.deprecation import NeptuneDeprecationWarning
 from neptune.new import Run
-from sklearn.metrics import average_precision_score
 from sklearn.model_selection import KFold
 from torch.cuda.amp import GradScaler
 from torch.optim import AdamW, Optimizer
@@ -23,11 +21,12 @@ import bienc.tokenizer as tokenizer
 from bienc.typehints import LossFunction
 from config import CFG, to_config_dct
 from cross.dset import PositivesNegativesDataset
+from cross.metrics import get_cross_f2, log_fscores
 from cross.model import CrossEncoder
 from data.content import get_content2text
 from data.topics import get_topic2text
-from metrics import fscore_from_prec_rec
 from utils import get_learning_rate_momentum, flatten_positive_negative_content_ids, get_topic_id_gold, safe_div
+
 
 warnings.filterwarnings("error", category=NeptuneDeprecationWarning)
 
@@ -66,14 +65,9 @@ def train_one_epoch(model: CrossEncoder, loss_fn: LossFunction, loader: DataLoad
     return step
 
 
-CROSS_EVAL_THRESHS = [round(x, 2) for x in np.arange(-0.2, 0.2, 0.02)]
-
-
 def evaluate(model: CrossEncoder, loss_fn: LossFunction, val_loader: DataLoader, device: torch.device, num_gold: int,
-             global_step: int, run: Run) -> Dict[str, float]:
-    """Performs in-batch validation."""
+             global_step: int, run: Run):
     all_probs = []
-    all_labels = []
     loss_cumsum = 0.0
     num_batches = 0
     model.eval()
@@ -85,44 +79,15 @@ def evaluate(model: CrossEncoder, loss_fn: LossFunction, val_loader: DataLoader,
             loss = loss_fn(logits, labels)
         probs = logits.softmax(dim=1)[:, 1]
         all_probs.append(probs.cpu().numpy().reshape(-1))
-        all_labels.append(labels.cpu().numpy())
         loss_cumsum += loss.item()
         num_batches += 1
 
     all_probs = np.concatenate(all_probs)
-    all_labels = np.concatenate(all_labels)
-    avg_precision = average_precision_score(all_labels, all_probs, average="micro")
-    acc = np.mean((all_probs >= 0.0) == all_labels).item()
     loss = loss_cumsum / num_batches
 
-    print(f"Evaluation avg precision: {avg_precision:.5}")
-    print(f"Evaluation accuracy: {acc:.5}")
     print(f"Evaluation loss: {loss:.5}")
-
-    run["val/avg_precision"].log(avg_precision, step=global_step)
-    run["val/acc"].log(acc, step=global_step)
-    run["val/loss"].log(loss, step=global_step)
-
-    # F2 and thresholds
-    best_thresh = None
-    best_fscore = -1.0
-    for thresh in CROSS_EVAL_THRESHS:
-        all_preds = all_probs >= thresh
-        tp = (all_preds == 1) & (all_labels == 1)
-        prec = safe_div(np.sum(tp), np.sum(all_preds))
-        rec = np.sum(tp) / num_gold
-        fscore = fscore_from_prec_rec(prec, rec, 2.0)
-        if fscore > best_fscore:
-            best_fscore = fscore
-            best_thresh = thresh
-        print(f"validation f2 using threshold {thresh}: {fscore:.5}")
-        run[f"val/F2@{thresh}"].log(fscore, step=global_step)
-    print(f"Best threshold: {best_thresh}")
-    print(f"Best F2 score: {best_fscore}")
-    run[f"val/best_thresh"].log(best_thresh, step=global_step)
-    run[f"val/best_F2"].log(best_fscore, step=global_step)
-
-    return {"avg_precision": avg_precision, "acc": acc, "loss": loss}
+    run["cross/loss"].log(loss, step=global_step)
+    return all_probs
 
 
 def main():
@@ -200,10 +165,11 @@ def main():
             if CFG.folds != "no":
                 # Loss and in-batch accuracy for training validation set
                 print(f"Evaluating epoch {epoch}...")
-                evaluate(model, loss_fn, val_loader, device, val_num_gold, global_step, run)
-
-                # Evaluate inference
-                # TODO
+                all_probs = evaluate(model, loss_fn, val_loader, device, val_num_gold, global_step, run)
+                fscores = get_cross_f2(all_probs, val_corr_df)
+                del all_probs
+                log_fscores(fscores, global_step, run)
+                del fscores
 
         # Save artifacts
         out_dir = output_dir / f"{run_id}" / "cross"
