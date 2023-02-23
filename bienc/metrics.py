@@ -68,7 +68,7 @@ def get_avg_precision_threshs(distances, indices, topic_ids: List[str], e2i: Dic
         num_preds = np.sum(~mask, axis=1)
         precs[:, len(mesh) - i - 1] = safe_div_np(num_tp, num_preds)
         recs[:, len(mesh) - i - 1] = num_tp / num_gold
-    avg_precision = precs * np.concatenate([np.zeros((len(topic_ids), 1)), np.diff(recs, axis=1)], axis=1)
+    avg_precision = precs * np.diff(np.concatenate([np.zeros((len(topic_ids), 1)), recs], axis=1), axis=1)
     avg_precision = np.mean(np.sum(avg_precision, axis=1)).item()
     return avg_precision
 
@@ -113,11 +113,11 @@ def get_average_precision_cands(indices, topic_ids: List[str], e2i: Dict[str, in
     mesh = list(range(1, CFG.NUM_NEIGHBORS + 1))
     precs = np.empty((len(topic_ids), len(mesh)), dtype=float)
     recs = np.empty((len(topic_ids), len(mesh)), dtype=float)
-    for num_cands in range(1, CFG.NUM_NEIGHBORS + 1):
+    for num_cands in mesh:
         acc_tp += tp[:, num_cands - 1]
         precs[:, num_cands - 1] = acc_tp / num_cands
         recs[:, num_cands - 1] = acc_tp / num_gold
-    avg_precision = precs * np.concatenate([np.zeros((len(topic_ids), 1)), np.diff(recs, axis=1)], axis=1)
+    avg_precision = precs * np.diff(np.concatenate([np.zeros((len(topic_ids), 1)), recs], axis=1), axis=1)
     avg_precision = np.mean(np.sum(avg_precision, axis=1)).item()
     return avg_precision
 
