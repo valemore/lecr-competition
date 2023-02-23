@@ -66,15 +66,16 @@ def get_bienc_cands_metrics(indices, topic_ids: List[str], e2i: Dict[str, int], 
         tp[i, :] = np.array([int(i2e[idx] in gold) for idx in idxs], dtype=int)
         num_gold[i] = len(gold)
 
-    precision_dct = {num_cands: 0.0 for num_cands in range(1, num_cands + 1)}
-    recall_dct = {num_cands: 0.0 for num_cands in range(1, num_cands + 1)}
-    micro_prec_dct = {num_cands: 0.0 for num_cands in range(1, num_cands + 1)}
-    pcr_dct = {num_cands: 0.0 for num_cands in range(1, num_cands + 1)}
+    effective_num_cands_range = list(range(1, num_cands + 1)) + [CFG.NUM_NEIGHBORS]
+    precision_dct = {num_cands: 0.0 for num_cands in effective_num_cands_range}
+    recall_dct = {num_cands: 0.0 for num_cands in effective_num_cands_range}
+    micro_prec_dct = {num_cands: 0.0 for num_cands in effective_num_cands_range}
+    pcr_dct = {num_cands: 0.0 for num_cands in effective_num_cands_range}
     avg_prec = np.zeros(len(topic_ids), dtype=float) # accumulating average precision for all topic ids
 
     acc_tp = np.zeros(len(topic_ids), dtype=float) # accumulating true positives for all topic ids
     prev_rec = np.zeros(len(topic_ids), dtype=float) # previous recall
-    for j, num_cands in enumerate(range(1, num_cands + 1)):
+    for j, num_cands in enumerate(effective_num_cands_range):
         acc_tp += tp[:, j]
         prec = acc_tp / num_cands
         rec = acc_tp / num_gold
