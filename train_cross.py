@@ -91,7 +91,7 @@ def evaluate(model: CrossEncoder, loss_fn: LossFunction, val_loader: DataLoader,
 
     all_probs = np.concatenate(all_probs)
     all_labels = np.concatenate(all_labels)
-    avg_precision = average_precision_score(all_labels, all_probs) # TODO ???
+    avg_precision = average_precision_score(all_labels, all_probs, average="micro")
     acc = np.mean((all_probs >= 0.0) == all_labels).item()
     loss = loss_cumsum / num_batches
 
@@ -206,9 +206,10 @@ def main():
                 # TODO
 
         # Save artifacts
-        (output_dir / f"{run_id}" / "cross").mkdir(parents=True, exist_ok=True)
+        out_dir = output_dir / f"{run_id}" / "cross"
+        out_dir.mkdir(parents=True, exist_ok=True)
         # (output_dir / f"{run_id}" / "tokenizer").mkdir(parents=True, exist_ok=True)
-        model.save(output_dir / f"{CFG.experiment_name}_{run_start}" / "cross")
+        model.save(out_dir)
         # tokenizer.tokenizer.save_pretrained(output_dir / f"{run_id}" / "tokenizer")
 
         fold_idx += 1
