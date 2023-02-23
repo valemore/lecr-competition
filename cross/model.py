@@ -23,7 +23,7 @@ class CrossEncoder(nn.Module):
         # CLS pooling
         out = out[:, 0, :] # TODO: ???
         out = self.dropout(out)
-        out = self.linear(out)
+        out = self.classifier(out)
         return out
 
     def load(self, save_dir):
