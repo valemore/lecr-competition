@@ -105,7 +105,7 @@ def get_cand_df(topic_ids: List[str], distances, indices, thresh: float, e2i: Di
     i2e = {entity_idx: entity_id for entity_id, entity_idx in e2i.items()}
     all_topic_cand_ids = []
     for data_id, dists, idxs in zip(topic_ids, distances, indices):
-        cands = [i2e[pred_idx] for pred_idx, dist in zip(idxs, dists) if dist <= thresh]
+        cands = [i2e[pred_idx] for pred_idx in idxs]
         # TODO
         # if not cands:
         #     cands = [i2e[idxs[0]]]
