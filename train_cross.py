@@ -114,8 +114,8 @@ def evaluate(model: CrossEncoder, val_loader: DataLoader, device: torch.device, 
         if fscore > best_fscore:
             best_fscore = fscore
             best_thresh = thresh
-            print(f"validation f2 using threshold {thresh}: {fscore:.5}")
-            run[f"val/F2@{thresh}"].log(fscore, step=global_step)
+        print(f"validation f2 using threshold {thresh}: {fscore:.5}")
+        run[f"val/F2@{thresh}"].log(fscore, step=global_step)
     print(f"Best threshold: {best_thresh}")
     print(f"Best F2 score: {best_fscore}")
     run[f"val/best_thresh"].log(best_thresh, step=global_step)
