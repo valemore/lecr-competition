@@ -9,12 +9,11 @@ from config import CFG
 from typehints import MetricDict
 from utils import safe_div_np
 
-BIENC_EVAL_THRESHS = [round(x, 2) for x in np.arange(0.2, 0.62, 0.02)] + [math.inf]
+BIENC_EVAL_THRESHS = [round(x, 2) for x in np.arange(0.2, 0.62, 0.02)]
 BIENC_STANDALONE_THRESHS = [round(x, 2) for x in np.arange(0.1, 0.52, 0.02)]
 
 
-def get_bienc_thresh_metrics(distances, indices,
-                             topic_ids: List[str], e2i: Dict[str, int], t2gold: Dict[str, Set[str]]) -> Tuple[MetricDict, MetricDict, MetricDict, MetricDict]:
+def get_i2e_tp_num_gold(indices, topic_ids: List[str], e2i: Dict[str, int], t2gold: Dict[str, Set[str]]):
     i2e = {entity_idx: entity_id for entity_id, entity_idx in e2i.items()}
     tp = np.empty_like(indices, dtype=int) # mask indicating whether prediction is a true positive
     num_gold = np.empty(len(topic_ids), dtype=int) # how many content ids are in gold?
@@ -22,8 +21,13 @@ def get_bienc_thresh_metrics(distances, indices,
         gold = t2gold[topic_id]
         tp[i, :] = np.array([int(i2e[idx] in gold) for idx in idxs], dtype=int)
         num_gold[i] = len(gold)
-    total_gold = np.sum(num_gold)
+    return i2e, tp, num_gold
 
+
+def get_bienc_thresh_metrics(distances, indices,
+                             topic_ids: List[str], e2i: Dict[str, int], t2gold: Dict[str, Set[str]]) -> Tuple[MetricDict, MetricDict, MetricDict, MetricDict]:
+    i2e, tp, num_gold = get_i2e_tp_num_gold(indices, topic_ids, e2i, t2gold)
+    total_gold = np.sum(num_gold)
 
     precision_dct = {thresh: 0.0 for thresh in BIENC_EVAL_THRESHS}
     recall_dct = {thresh: 0.0 for thresh in BIENC_EVAL_THRESHS}
@@ -51,41 +55,40 @@ def get_bienc_thresh_metrics(distances, indices,
     return precision_dct, recall_dct, micro_prec_dct, pcr_dct
 
 
+def get_avg_precision_threshs(distances, indices, topic_ids: List[str], e2i: Dict[str, int], t2gold: Dict[str, Set[str]]):
+    i2e, tp, num_gold = get_i2e_tp_num_gold(indices, topic_ids, e2i, t2gold)
+
+    mesh = [round(x, 2) for x in np.arange(-1.0, 1.0 + 0.01, 0.01)]
+    mesh.reverse()
+    precs = np.empty(len(mesh), dtype=float)
+    recs = np.empty(len(mesh), dtype=float)
+    for i, thresh in enumerate(mesh):
+        mask = distances > thresh
+        tp[mask] = 0
+        num_tp = np.sum(tp, axis=1)
+        num_preds = np.sum(mask, axis=1)
+        precs[len(mesh) - i - 1] = np.mean(safe_div_np(num_tp, num_preds))
+        recs[len(mesh) - i - 1] = np.mean(num_tp / num_gold)
+    avg_precision = np.sum(precs * np.concatenate([np.zeros(1), np.diff(recs)]))
+    return avg_precision
+
+
 def log_dct(dct: Dict[int, float], label: str, global_step: int, run: Run):
     for k, v in dct.items():
         run[f"{label}@{k}"].log(v, step=global_step)
 
 
-def get_avg_precision(precision_dct: MetricDict, recall_dct: MetricDict) -> float:
-    """Get average precision over all keys in PRECISION_DCT and RECALL_DCT."""
-    keys = sorted(precision_dct.keys())
-    assert len(keys) == len(recall_dct.keys()), "Keys in metric dicts do not match!"
-    acc = 0.0
-    prev_rec = 0.0
-    for k in keys:
-        prec, rec = precision_dct[k], recall_dct[k]
-        acc += prec * (rec - prev_rec)
-        prev_rec = rec
-    return acc
-
-
 def get_bienc_cands_metrics(indices, topic_ids: List[str], e2i: Dict[str, int], t2gold: Dict[str, Set[str]], num_cands: int) -> Tuple[MetricDict, MetricDict, MetricDict, MetricDict]:
-    i2e = {entity_idx: entity_id for entity_id, entity_idx in e2i.items()}
-    tp = np.empty_like(indices, dtype=int) # mask indicating whether prediction is a true positive
-    num_gold = np.empty(len(topic_ids), dtype=int) # how many content ids are in gold?
-    for i, (idxs, topic_id) in enumerate(zip(indices, topic_ids)):
-        gold = t2gold[topic_id]
-        tp[i, :] = np.array([int(i2e[idx] in gold) for idx in idxs], dtype=int)
-        num_gold[i] = len(gold)
+    i2e, tp, num_gold = get_i2e_tp_num_gold(indices, topic_ids, e2i, t2gold)
 
-    effective_num_cands_range = list(range(1, num_cands + 1)) + ([CFG.NUM_NEIGHBORS] if num_cands < CFG.NUM_NEIGHBORS else [])
-    precision_dct = {num_cands: 0.0 for num_cands in effective_num_cands_range}
-    recall_dct = {num_cands: 0.0 for num_cands in effective_num_cands_range}
-    micro_prec_dct = {num_cands: 0.0 for num_cands in effective_num_cands_range}
-    pcr_dct = {num_cands: 0.0 for num_cands in effective_num_cands_range}
+    mesh = list(range(1, num_cands + 1))
+    precision_dct = {num_cands: 0.0 for num_cands in mesh}
+    recall_dct = {num_cands: 0.0 for num_cands in mesh}
+    micro_prec_dct = {num_cands: 0.0 for num_cands in mesh}
+    pcr_dct = {num_cands: 0.0 for num_cands in mesh}
 
     acc_tp = np.zeros(len(topic_ids), dtype=float) # accumulating true positives for all topic ids
-    for num_cands in effective_num_cands_range:
+    for num_cands in mesh:
         acc_tp += tp[:, num_cands - 1]
         prec = acc_tp / num_cands
         rec = acc_tp / num_gold
@@ -100,6 +103,22 @@ def get_bienc_cands_metrics(indices, topic_ids: List[str], e2i: Dict[str, int], 
         # Positive class ratio: What we expect the positive class ratio to be in gen_cross_data
         pcr_dct[num_cands] = num_gold_all / ( num_fp + num_gold_all)
     return precision_dct, recall_dct, micro_prec_dct, pcr_dct
+
+
+def get_average_precision_cands(indices, topic_ids: List[str], e2i: Dict[str, int], t2gold: Dict[str, Set[str]]):
+    i2e, tp, num_gold = get_i2e_tp_num_gold(indices, topic_ids, e2i, t2gold)
+
+    acc_tp = np.zeros(len(topic_ids), dtype=float) # accumulating true positives for all topic ids
+
+    mesh = list(range(1, CFG.NUM_NEIGHBORS + 1))
+    precs = np.empty(len(mesh), dtype=float)
+    recs = np.empty(len(mesh), dtype=float)
+    for num_cands in range(1, CFG.NUM_NEIGHBORS + 1):
+        acc_tp += tp[:, num_cands - 1]
+        precs[num_cands - 1] = acc_tp / num_cands
+        recs[num_cands - 1] = acc_tp / num_gold
+    avg_precision = np.sum(precs * np.concatenate([np.zeros(1), np.diff(recs)]))
+    return avg_precision
 
 
 def get_min_max_ranks(indices, data_ids: List[str], data2gold: Dict[str, Set[str]], e2i: Dict[str, int]):
