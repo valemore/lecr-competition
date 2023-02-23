@@ -55,7 +55,7 @@ def get_bienc_thresh_metrics(distances, indices,
     return precision_dct, recall_dct, micro_prec_dct, pcr_dct
 
 
-def get_avg_precision_threshs(distances, indices, topic_ids: List[str], e2i: Dict[str, int], t2gold: Dict[str, Set[str]]):
+def get_avg_precision_threshs(distances, indices, topic_ids: List[str], e2i: Dict[str, int], t2gold: Dict[str, Set[str]]) -> float:
     i2e, tp, num_gold = get_i2e_tp_num_gold(indices, topic_ids, e2i, t2gold)
 
     mesh = [round(x, 2) for x in np.arange(-1.0, 1.0 + 0.01, 0.01)]
@@ -66,10 +66,10 @@ def get_avg_precision_threshs(distances, indices, topic_ids: List[str], e2i: Dic
         mask = distances > thresh
         tp[mask] = 0
         num_tp = np.sum(tp, axis=1)
-        num_preds = np.sum(mask, axis=1)
+        num_preds = np.sum(~mask, axis=1)
         precs[len(mesh) - i - 1] = np.mean(safe_div_np(num_tp, num_preds))
         recs[len(mesh) - i - 1] = np.mean(num_tp / num_gold)
-    avg_precision = np.sum(precs * np.concatenate([np.zeros(1), np.diff(recs)]))
+    avg_precision = np.sum(precs * np.concatenate([np.zeros(1), np.diff(recs)])).item()
     return avg_precision
 
 
@@ -105,7 +105,7 @@ def get_bienc_cands_metrics(indices, topic_ids: List[str], e2i: Dict[str, int], 
     return precision_dct, recall_dct, micro_prec_dct, pcr_dct
 
 
-def get_average_precision_cands(indices, topic_ids: List[str], e2i: Dict[str, int], t2gold: Dict[str, Set[str]]):
+def get_average_precision_cands(indices, topic_ids: List[str], e2i: Dict[str, int], t2gold: Dict[str, Set[str]]) -> float:
     i2e, tp, num_gold = get_i2e_tp_num_gold(indices, topic_ids, e2i, t2gold)
 
     acc_tp = np.zeros(len(topic_ids), dtype=float) # accumulating true positives for all topic ids
@@ -115,9 +115,9 @@ def get_average_precision_cands(indices, topic_ids: List[str], e2i: Dict[str, in
     recs = np.empty(len(mesh), dtype=float)
     for num_cands in range(1, CFG.NUM_NEIGHBORS + 1):
         acc_tp += tp[:, num_cands - 1]
-        precs[num_cands - 1] = acc_tp / num_cands
-        recs[num_cands - 1] = acc_tp / num_gold
-    avg_precision = np.sum(precs * np.concatenate([np.zeros(1), np.diff(recs)]))
+        precs[num_cands - 1] = np.mean(acc_tp / num_cands)
+        recs[num_cands - 1] = np.mean(acc_tp / num_gold)
+    avg_precision = np.sum(precs * np.concatenate([np.zeros(1), np.diff(recs)])).item()
     return avg_precision
 
 
