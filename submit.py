@@ -12,6 +12,7 @@ from bienc.tokenizer import init_tokenizer
 from config import CFG
 from cross.dset import CrossInferenceDataset
 from cross.inference import predict
+from cross.model import CrossEncoder
 from data.content import get_content2text
 from data.topics import get_topic2text
 from typehints import FName
@@ -30,8 +31,8 @@ def get_bienc(bienc_dir: FName, device: torch.device) -> BiencoderModule:
 
 
 def get_cross(cross_dir: FName, device: torch.device):
-    model = AutoModel.from_pretrained(cross_dir)
-    model.to(device)
+    model = CrossEncoder(dropout=CFG.cross_dropout, save_dir=cross_dir).to(device)
+    model.load(cross_dir)
     model.eval()
     return model
 

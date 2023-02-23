@@ -44,3 +44,5 @@ class CFG:
     experiment_name = None
     folds = None
     output_dir = None
+    cross_dropout = None
+

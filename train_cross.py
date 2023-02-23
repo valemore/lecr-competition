@@ -171,7 +171,7 @@ def main():
                                                  topic2text, content2text, CFG.CROSS_NUM_TOKENS)
             val_loader = DataLoader(val_dset, batch_size=CFG.batch_size, num_workers=CFG.NUM_WORKERS, shuffle=False)
 
-        model = CrossEncoder().to(device)
+        model = CrossEncoder(dropout=CFG.cross_dropout).to(device)
         loss_fn = nn.CrossEntropyLoss().to(device)
 
         optim = AdamW(model.parameters(), lr=CFG.max_lr, weight_decay=CFG.weight_decay)
@@ -213,6 +213,7 @@ def main():
         # tokenizer.tokenizer.save_pretrained(output_dir / f"{run_id}" / "tokenizer")
 
         fold_idx += 1
+        run.stop()
 
 
 if __name__ == "__main__":
@@ -225,6 +226,7 @@ if __name__ == "__main__":
     parser.add_argument("--use_fp", action="store_true")
     parser.add_argument("--experiment_name", type=str, required=True)
     parser.add_argument("--df", type=str, required=True)
+    parser.add_argument("--cross_dropout", default=0.1, type=float)
     parser.add_argument("--folds", type=str, choices=["first", "all", "no"], default="first")
     parser.add_argument("--output_dir", type=str, default="../out")
 
@@ -244,6 +246,7 @@ if __name__ == "__main__":
     CFG.use_amp = not args.use_fp
     CFG.experiment_name = args.experiment_name
     CFG.CROSS_CORR_FNAME = args.df
+    CFG.cross_dropout = args.cross_dropout
     CFG.folds = args.folds
     CFG.output_dir = args.output_dir
 
