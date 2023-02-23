@@ -68,11 +68,11 @@ def bienc_main(topic_ids: List[str], content_ids: List[str], topic2text: Dict[st
     return distances, indices
 
 
-def cross_main(thresh: float, cand_df: pd.DataFrame, topic2text, content2text, cross_dir: FName,
+def cross_main(classifier_thresh: float, cand_df: pd.DataFrame, topic2text, content2text, cross_dir: FName,
                batch_size: int, device: torch.device):
     model = get_cross(cross_dir, device)
     dset = CrossInferenceDataset(cand_df["topic_id"], cand_df["cands"], topic2text, content2text, CFG.CROSS_NUM_TOKENS)
-    all_preds = predict(model, dset, thresh, batch_size, device)
+    all_preds = predict(model, dset, classifier_thresh, batch_size, device)
     return all_preds
 
 
@@ -89,7 +89,9 @@ def get_data(data_dir: FName):
     return content_df, topics_df, topic_ids, content_ids, c2i, topic2text, content2text
 
 
-def main(thresh: float, data_dir: FName, tokenizer_dir: FName, bienc_dir: FName, cross_dir: FName,
+def main(thresh: float,
+         classifier_thresh: float,
+         data_dir: FName, tokenizer_dir: FName, bienc_dir: FName, cross_dir: FName,
          bienc_batch_size: int, cross_batch_size: int):
     data_dir = Path(data_dir)
     device = torch.device("cuda")
@@ -102,7 +104,7 @@ def main(thresh: float, data_dir: FName, tokenizer_dir: FName, bienc_dir: FName,
     cand_df = get_cand_df(topic_ids, distances, indices, thresh, c2i)
     del distances, indices
     gc.collect()
-    all_preds = cross_main(thresh, cand_df, topic2text, content2text, cross_dir, cross_batch_size, device)
+    all_preds = cross_main(classifier_thresh, cand_df, topic2text, content2text, cross_dir, cross_batch_size, device)
 
     t2preds = {}
     for topic_id in topic_ids:
