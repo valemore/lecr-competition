@@ -89,8 +89,7 @@ def get_data(data_dir: FName):
     return content_df, topics_df, topic_ids, content_ids, c2i, topic2text, content2text
 
 
-def main(thresh: float,
-         classifier_thresh: float,
+def main(classifier_thresh: float,
          data_dir: FName, tokenizer_dir: FName, bienc_dir: FName, cross_dir: FName,
          bienc_batch_size: int, cross_batch_size: int):
     data_dir = Path(data_dir)
@@ -101,7 +100,7 @@ def main(thresh: float,
 
     distances, indices = bienc_main(topic_ids, content_ids, topic2text, content2text,
                                     bienc_dir, bienc_batch_size, device)
-    cand_df = get_cand_df(topic_ids, distances, indices, thresh, c2i)
+    cand_df = get_cand_df(topic_ids, distances, indices, c2i)
     del distances, indices
     gc.collect()
     all_preds = cross_main(classifier_thresh, cand_df, topic2text, content2text, cross_dir, cross_batch_size, device)

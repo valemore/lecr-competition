@@ -92,13 +92,12 @@ def entities_inference(data_ids: List[str], encoder: BiencoderModule, nn_model: 
     return distances, indices
 
 
-def get_cand_df(topic_ids: List[str], distances, indices, thresh: float, e2i: Dict[str, int]) -> pd.DataFrame:
+def get_cand_df(topic_ids: List[str], distances, indices, e2i: Dict[str, int]) -> pd.DataFrame:
     """
     Converts distances and indices obtained from NN search to dataframe containing candidate contents for all topics.
     :param topic_ids: all topic ids in order
     :param distances: distances - output from NN model
     :param indices: indices - output from NN model
-    :param thresh: threshold to use for generating candidates
     :param e2i: dct mapping entity names to indices
     :return: dataframe with two columns: topic ids and concatenated candidate ids
     """
