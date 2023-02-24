@@ -1,3 +1,4 @@
+import gc
 from argparse import ArgumentParser
 from pathlib import Path
 import random
@@ -167,6 +168,19 @@ def evaluate_inference(encoder: BiencoderModule, device: torch.device, batch_siz
     run[f"val/best_F2"].log(best_fscore, step=global_step)
 
 
+def wrap_evaluate_inference(model: Biencoder, device: torch.device, batch_size: int, corr_df: pd.DataFrame,
+                            topic2text: Dict[str, str], content2text: Dict[str, str], e2i: Dict[str, int],
+                            optim: Optimizer,
+                            global_step: int, run: Run) -> Optimizer:
+    optimizer_state_dict = optim.state_dict()
+    evaluate_inference(model.topic_encoder, device, batch_size,
+                       corr_df, topic2text, content2text, e2i,
+                       global_step, run)
+    optim = AdamW(model.parameters(), lr=CFG.max_lr, weight_decay=CFG.weight_decay)
+    optim.load_state_dict(optimizer_state_dict)
+    return optim
+
+
 def main():
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
     output_dir = Path(CFG.output_dir)
@@ -198,6 +212,7 @@ def main():
         c2i = {content_id: content_idx for content_idx, content_id in enumerate(sorted(set(content_df["id"])))}
         topic2text = get_topic2text(topics_df)
         content2text = get_content2text(content_df)
+        del topics_df, content_df
 
         train_dset = BiencDataset(train_corr_df["topic_id"], train_corr_df["content_ids"],
                                   topic2text, content2text, CFG.TOPIC_NUM_TOKENS, CFG.CONTENT_NUM_TOKENS, train_t2i, c2i)
@@ -231,6 +246,8 @@ def main():
         global_step = 0
         for epoch in tqdm(range(CFG.num_epochs)):
             print(f"Training epoch {epoch}...")
+            gc.collect()
+            torch.cuda.empty_cache()
             global_step = train_one_epoch(model, loss_fn, train_loader, device, optim, None, not CFG.use_fp, scaler,
                                           global_step, run)
 
@@ -243,12 +260,10 @@ def main():
                 print(f"Running inference-mode evaluation for epoch {epoch}...")
                 # We need to re-initialize optimizer because evaluate_inference offloads model onto CPU
                 # TODO: Is this actually needed?
-                optimizer_state_dict = optim.state_dict()
-                evaluate_inference(model.topic_encoder, device, CFG.batch_size,
-                                   val_corr_df, topic2text, content2text, c2i,
-                                   global_step, run)
-                optim = AdamW(model.parameters(), lr=CFG.max_lr, weight_decay=CFG.weight_decay)
-                optim.load_state_dict(optimizer_state_dict)
+                optim = wrap_evaluate_inference(model, device, CFG.batch_size,
+                                                val_corr_df, topic2text, content2text, c2i,
+                                                optim,
+                                                global_step, run)
 
         # Save artifacts
         (output_dir / f"{run_id}" / "bienc").mkdir(parents=True, exist_ok=True)
