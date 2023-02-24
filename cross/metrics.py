@@ -37,7 +37,7 @@ def get_cross_f2(probs, corr_df):
 
 def log_fscores(fscores, step, run):
     for thresh, fscore in zip(CROSS_EVAL_THRESHS, fscores):
-        run[f"cross/f2@{thresh}"].log(thresh, step=step)
+        run[f"cross/f2@{thresh}"].log(fscore, step=step)
 
     best_idx = np.argmax(fscores)
     best_thresh = CROSS_EVAL_THRESHS[best_idx]
