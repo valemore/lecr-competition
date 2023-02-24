@@ -24,7 +24,7 @@ def get_num_tp_num_fp(probs, topic_ids, concatenated_content_ids, concatenated_c
 def get_cross_f2(probs, corr_df):
     num_tp, num_fp = get_num_tp_num_fp(probs, corr_df["topic_id"], corr_df["content_ids"], corr_df["cands"])
     num_tp, num_fp = num_tp.astype(float), num_fp.astype(float)
-    num_gold = np.array([len(x) for x in corr_df["content_ids"].split()], dtype=float)
+    num_gold = np.array([len(x.split()) for x in corr_df["content_ids"]], dtype=float)
 
     precs = num_tp / (num_tp + num_fp)
     recs = num_tp / num_gold
