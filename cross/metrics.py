@@ -27,7 +27,7 @@ def get_cross_f2(probs, corr_df):
     num_gold = np.array([len(x.split()) for x in corr_df["content_ids"]], dtype=float)
 
     precs = num_tp / (num_tp + num_fp)
-    recs = num_tp / num_gold
+    recs = num_tp / num_gold.reshape(-1, 1)
 
     fscores = np_fscore(precs, recs, 2.0)
     fscores = np.mean(fscores, axis=0)
