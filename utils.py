@@ -1,6 +1,6 @@
 # Utility functions
 import pickle
-from collections import defaultdict
+from collections import defaultdict, OrderedDict
 from typing import Union, Callable, Any, Tuple, Dict, List, Set
 
 import pandas as pd
@@ -129,4 +129,11 @@ def safe_div_np(num, den):
     den[mask] = 1.0
     out = num / den
     out[mask] = 0.0
+    return out
+
+
+def state_dict_to(state_dict, device: torch.device):
+    out = OrderedDict()
+    for k, v in state_dict.items():
+        out[k] = v.to(device)
     return out

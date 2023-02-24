@@ -30,6 +30,10 @@ class BidirectionalMarginLoss:
         loss = F.cross_entropy(scores, target, reduction="mean") + F.cross_entropy(scores.t(), target, reduction="mean")
         return loss
 
+    def to(self, device):
+        self.device = device
+        return self
+
 
 class UnidirectionalMarginLoss:
     def __init__(self, device: torch.device, margin: float = 0.0):
@@ -55,6 +59,10 @@ class UnidirectionalMarginLoss:
         scores[mask] = float('-inf')
         loss = F.cross_entropy(scores, target, reduction="mean")
         return loss
+
+    def to(self, device):
+        self.device = device
+        return self
 
 
 def dot_score(topic_emb, content_emb):

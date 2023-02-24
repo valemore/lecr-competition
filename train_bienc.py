@@ -241,9 +241,14 @@ def main():
 
                 # Evaluate inference
                 print(f"Running inference-mode evaluation for epoch {epoch}...")
+                # We need to re-initialize optimizer because evaluate_inference offloads model onto CPU
+                # TODO: Is this actually needed?
+                optimizer_state_dict = optim.state_dict()
                 evaluate_inference(model.topic_encoder, device, CFG.batch_size,
                                    val_corr_df, topic2text, content2text, c2i,
                                    global_step, run)
+                optim = AdamW(model.parameters(), lr=CFG.max_lr, weight_decay=CFG.weight_decay)
+                optim.load_state_dict(optimizer_state_dict)
 
         # Save artifacts
         (output_dir / f"{run_id}" / "bienc").mkdir(parents=True, exist_ok=True)

@@ -1,4 +1,5 @@
 # Inference for the Bi-encoder
+import gc
 from typing import Any, Dict, List, Set, Tuple
 
 import cupy as cp
@@ -56,7 +57,16 @@ def embed_and_nn(encoder: BiencoderModule, data_ids: List[str], data2text: Dict[
                  batch_size: int, device: torch.device):
     """Embeds and prepares nearest neighbors data structure."""
     embs = embed_data(encoder, data_ids, data2text, batch_size, device)
+    # Rapids NN runs on GPU - shift model to CPU to save GPU memory
+    encoder.to(torch.device("cpu"))
+    gc.collect()
+    torch.cuda.empty_cache()
     nn_model = prepare_nn(embs, num_neighbors)
+    # Move model back onto GPU. IMPORTANT: Need to tie optimizer to model parameters again before the next training loop.
+    del embs
+    gc.collect()
+    torch.cuda.empty_cache()
+    encoder.to(device)
     return nn_model
 
 
