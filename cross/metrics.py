@@ -1,6 +1,7 @@
 import numpy as np
 
 from metrics import np_fscore
+from utils import safe_div_np
 
 CROSS_EVAL_THRESHS = np.array([round(x, 2) for x in np.arange(-0.2, 0.2 + 0.01, 0.01)])
 
@@ -26,7 +27,7 @@ def get_cross_f2(probs, corr_df):
     num_tp, num_fp = num_tp.astype(float), num_fp.astype(float)
     num_gold = np.array([len(x.split()) for x in corr_df["content_ids"]], dtype=float)
 
-    precs = num_tp / (num_tp + num_fp)
+    precs = safe_div_np(num_tp, (num_tp + num_fp))
     recs = num_tp / num_gold.reshape(-1, 1)
 
     fscores = np_fscore(precs, recs, 2.0)
