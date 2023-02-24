@@ -25,8 +25,8 @@ from cross.metrics import get_cross_f2, log_fscores
 from cross.model import CrossEncoder
 from data.content import get_content2text
 from data.topics import get_topic2text
-from utils import get_learning_rate_momentum, flatten_positive_negative_content_ids, get_topic_id_gold, safe_div
-
+from utils import get_learning_rate_momentum, flatten_positive_negative_content_ids, get_topic_id_gold, safe_div, \
+    sanitize_model_name
 
 warnings.filterwarnings("error", category=NeptuneDeprecationWarning)
 
@@ -210,7 +210,7 @@ if __name__ == "__main__":
     CFG.weight_decay = args.weight_decay
     CFG.num_epochs = args.num_epochs
     CFG.use_amp = not args.use_fp
-    CFG.experiment_name = args.experiment_name
+    CFG.experiment_name = sanitize_model_name(args.experiment_name)
     CFG.CROSS_CORR_FNAME = args.df
     CFG.cross_dropout = args.cross_dropout
     CFG.folds = args.folds

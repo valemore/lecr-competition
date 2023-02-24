@@ -24,7 +24,8 @@ from data.topics import get_topic2text
 from bienc.model import Biencoder, BiencoderModule
 from bienc.losses import BidirectionalMarginLoss
 from metrics import get_fscore
-from utils import get_learning_rate_momentum, flatten_content_ids, are_entity_ids_aligned, get_topic_id_gold
+from utils import get_learning_rate_momentum, flatten_content_ids, are_entity_ids_aligned, get_topic_id_gold, \
+    sanitize_model_name
 from bienc.metrics import get_bienc_thresh_metrics, log_dct, BIENC_STANDALONE_THRESHS, get_log_mir_metrics, \
     get_bienc_cands_metrics, get_average_precision_cands, get_avg_precision_threshs
 
@@ -287,7 +288,7 @@ if __name__ == "__main__":
     CFG.margin = args.margin
     CFG.num_epochs = args.num_epochs
     CFG.use_fp = args.use_fp
-    CFG.experiment_name = args.experiment_name
+    CFG.experiment_name = sanitize_model_name(args.experiment_name)
     CFG.folds = args.folds
     CFG.output_dir = args.output_dir
 
