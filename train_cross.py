@@ -194,7 +194,7 @@ if __name__ == "__main__":
     parser.add_argument("--df", type=str, required=True)
     parser.add_argument("--cross_dropout", default=0.1, type=float)
     parser.add_argument("--folds", type=str, choices=["first", "all", "no"], default="first")
-    parser.add_argument("--output_dir", type=str, default="../out")
+    parser.add_argument("--output_dir", type=str, default="../cout")
 
     parser.add_argument("--data_dir", type=str)
     parser.add_argument("--val_split_seed", type=int)
