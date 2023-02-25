@@ -282,7 +282,7 @@ def main():
                                                           global_step, run)
                 if epoch == CFG.num_epochs - 1:
                     (cross_output_dir / f"{experiment_id}").mkdir(parents=True, exist_ok=True)
-                    cross_df_fname = cross_output_dir / f"{experiment_id}" / f"{experiment_id}_fold-{fold_idx}.csv"
+                    cross_df_fname = cross_output_dir / f"{experiment_id}" / f"fold-{fold_idx}.csv"
                     cross_df.to_csv(cross_df_fname, index=False)
                     print(f"Wrote cross df to {cross_df_fname}")
 
