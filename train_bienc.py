@@ -297,6 +297,15 @@ def main():
         fold_idx += 1
         run.stop()
 
+    if CFG.folds == "all":
+        cross_df = pd.DataFrame()
+        for fold_idx in range(CFG.num_folds):
+            cross_df = pd.concat([cross_df, pd.read_csv(cross_output_dir / f"{experiment_id}" / f"fold-{fold_idx}.csv", keep_default_na=False)]).reset_index(drop=True)
+        cross_df = cross_df.sort_values("topic_id").reset_index(drop=True)
+        cross_df.to_csv(cross_output_dir / f"{experiment_id}" / "all_folds.csv", index=False)
+        print(f'Wrote cross df to {cross_output_dir / f"{experiment_id}" / "all_folds.csv"}')
+
+
 
 if __name__ == "__main__":
     parser = ArgumentParser()
