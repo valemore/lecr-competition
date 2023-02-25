@@ -216,7 +216,7 @@ def main():
     experiment_id = f'{CFG.experiment_name}_{datetime.utcnow().strftime("%m%d-%H%M%S")}'
 
     fold_idx = 0 if CFG.folds != "no" else -1
-    for topics_in_scope_train_idxs, topics_in_scope_val_idxs in KFold(n_splits=5).split(topics_in_scope):
+    for topics_in_scope_train_idxs, topics_in_scope_val_idxs in KFold(n_splits=CFG.num_folds).split(topics_in_scope):
         if (CFG.folds == "first" and fold_idx > 0) or (CFG.folds == "no" and fold_idx == 0):
             break
         print(f"---*** Training fold {fold_idx} ***---")
@@ -308,6 +308,7 @@ if __name__ == "__main__":
     parser.add_argument("--use_fp", action="store_true")
     parser.add_argument("--experiment_name", type=str, required=True)
     parser.add_argument("--folds", type=str, choices=["first", "all", "no"], default="first")
+    parser.add_argument("--num_folds", type=int, default=5)
     parser.add_argument("--output_dir", type=str, default="../out")
 
     parser.add_argument("--data_dir", type=str)
@@ -330,6 +331,7 @@ if __name__ == "__main__":
     CFG.use_fp = args.use_fp
     CFG.experiment_name = sanitize_model_name(args.experiment_name)
     CFG.folds = args.folds
+    CFG.num_folds = args.num_folds
     CFG.output_dir = args.output_dir
 
     if args.data_dir is not None:

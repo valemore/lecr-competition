@@ -43,7 +43,7 @@ class CFG:
     use_amp = None
     experiment_name = None
     folds = None
+    num_folds = None
     output_dir = None
     cross_dropout = None
     cross_num_cands = None
-
