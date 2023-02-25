@@ -52,3 +52,15 @@ def log_fscores(fscores, step, run):
     print(f"Best F2 @ {best_thresh:.5}: {best_f2:.5}")
     run["cross/best_thresh"].log(best_thresh, step=step)
     run["cross/best_f2"].log(best_f2, step=step)
+
+
+def get_positive_class_ratio(corr_df, num_cands):
+    acc_num_examples = 0
+    acc_num_positives = 0
+    for cat_gold_ids, cat_cand_ids in zip(corr_df["content_ids"], corr_df["cands"]):
+        gold_ids = set(cat_gold_ids.split())
+        cand_ids = set(cat_cand_ids.split()[:num_cands])
+        negative_ids = cand_ids - gold_ids
+        acc_num_examples += len(gold_ids) + len(negative_ids)
+        acc_num_positives += len(gold_ids)
+    return acc_num_positives / acc_num_examples

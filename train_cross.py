@@ -21,7 +21,7 @@ import bienc.tokenizer as tokenizer
 from bienc.typehints import LossFunction
 from config import CFG, to_config_dct
 from cross.dset import CrossDataset
-from cross.metrics import get_cross_f2, log_fscores
+from cross.metrics import get_cross_f2, log_fscores, get_positive_class_ratio
 from cross.model import CrossEncoder
 from data.content import get_content2text
 from data.topics import get_topic2text
@@ -95,7 +95,7 @@ def main():
     output_dir = Path(CFG.output_dir)
 
     content_df = pd.read_csv(CFG.DATA_DIR / "content.csv")
-    corr_df = pd.read_csv(CFG.CROSS_CORR_FNAME, keep_default_na=False)
+    corr_df = pd.read_csv(CFG.cross_corr_fname, keep_default_na=False)
     topics_df = pd.read_csv(CFG.DATA_DIR / "topics.csv")
 
     # corr_df["cands"] = [" ".join(x.split()[:10]) for x in corr_df["cands"]]
@@ -104,7 +104,7 @@ def main():
         corr_df = corr_df.sample(10).reset_index(drop=True)
         content_df = content_df.loc[content_df["id"].isin(set(flatten_positive_negative_content_ids(corr_df))), :].reset_index(drop=True)
 
-    class_ratio = sum(len(x.split()) for x in corr_df["content_ids"]) / sum(len(x.split()) for x in corr_df["cands"])
+    class_ratio = get_positive_class_ratio(corr_df, CFG.cross_num_cands)
     print(f"Positive class ratio: {class_ratio}")
 
     topics_in_scope = sorted(list(set(corr_df["topic_id"])))
@@ -211,7 +211,7 @@ if __name__ == "__main__":
     CFG.num_epochs = args.num_epochs
     CFG.use_amp = not args.use_fp
     CFG.experiment_name = sanitize_model_name(args.experiment_name)
-    CFG.CROSS_CORR_FNAME = args.df
+    CFG.cross_corr_fname = args.df
     CFG.cross_dropout = args.cross_dropout
     CFG.cross_num_cands = args.cross_num_cands
     CFG.folds = args.folds
