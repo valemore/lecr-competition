@@ -244,7 +244,7 @@ def main():
         loss_fn = BidirectionalMarginLoss(device, CFG.margin)
 
         optim = AdamW(model.parameters(), lr=CFG.max_lr, weight_decay=CFG.weight_decay)
-        scaler = GradScaler(enabled=not CFG.use_fp)
+        scaler = GradScaler(enabled=CFG.use_amp)
 
         # Prepare logging and saving
         run = neptune.init_run(
@@ -263,7 +263,7 @@ def main():
             print(f"Training epoch {epoch}...")
             gc.collect()
             torch.cuda.empty_cache()
-            global_step = train_one_epoch(model, loss_fn, train_loader, device, optim, None, not CFG.use_fp, scaler,
+            global_step = train_one_epoch(model, loss_fn, train_loader, device, optim, None, CFG.use_amp, scaler,
                                           global_step, run)
 
             if CFG.folds != "no":
@@ -339,7 +339,7 @@ if __name__ == "__main__":
     CFG.weight_decay = args.weight_decay
     CFG.margin = args.margin
     CFG.num_epochs = args.num_epochs
-    CFG.use_fp = args.use_fp
+    CFG.use_amp = not args.use_fp
     CFG.experiment_name = sanitize_model_name(args.experiment_name)
     CFG.folds = args.folds
     CFG.num_folds = args.num_folds

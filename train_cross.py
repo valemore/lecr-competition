@@ -1,8 +1,8 @@
 import random
+import warnings
 from argparse import ArgumentParser
 from datetime import datetime
 from pathlib import Path
-import warnings
 
 import neptune.new as neptune
 import numpy as np
@@ -19,14 +19,14 @@ from tqdm import tqdm
 
 import bienc.tokenizer as tokenizer
 from bienc.typehints import LossFunction
+from ceevee import get_source_nonsource_topics
 from config import CFG, to_config_dct
 from cross.dset import CrossDataset
 from cross.metrics import get_cross_f2, log_fscores, get_positive_class_ratio
 from cross.model import CrossEncoder
 from data.content import get_content2text
 from data.topics import get_topic2text
-from utils import get_learning_rate_momentum, flatten_positive_negative_content_ids, get_topic_id_gold, safe_div, \
-    sanitize_model_name
+from utils import get_learning_rate_momentum, flatten_positive_negative_content_ids, sanitize_model_name
 
 warnings.filterwarnings("error", category=NeptuneDeprecationWarning)
 
@@ -107,29 +107,31 @@ def main():
     class_ratio = get_positive_class_ratio(corr_df, CFG.cross_num_cands)
     print(f"Positive class ratio: {class_ratio}")
 
-    topics_in_scope = sorted(list(set(corr_df["topic_id"])))
+    topic2text = get_topic2text(topics_df)
+    content2text = get_content2text(content_df)
+
+    source_topics, nonsource_topics = get_source_nonsource_topics(corr_df, topics_df)
     random.seed(CFG.VAL_SPLIT_SEED)
-    random.shuffle(topics_in_scope)
+    random.shuffle(nonsource_topics)
+
+    del topics_df, content_df
 
     fold_idx = 0 if CFG.folds != "no" else -1
-    for topics_in_scope_train_idxs, topics_in_scope_val_idxs in KFold(n_splits=5).split(topics_in_scope):
+    for nonsource_topics_train_idxs, nonsource_topics_val_idxs in KFold(n_splits=CFG.num_folds).split(nonsource_topics):
         if (CFG.folds == "first" and fold_idx > 0) or (CFG.folds == "no" and fold_idx == 0):
             break
         if CFG.folds != "no":
-            train_topics = set(topics_in_scope[idx] for idx in topics_in_scope_train_idxs)
+            train_topics = set(nonsource_topics[idx] for idx in nonsource_topics_train_idxs) | set(source_topics)
         else:
-            train_topics = topics_in_scope
+            train_topics = set(corr_df["topic_id"])
         train_corr_df = corr_df.loc[corr_df["topic_id"].isin(train_topics), :].reset_index(drop=True)
-
-        topic2text = get_topic2text(topics_df)
-        content2text = get_content2text(content_df)
 
         train_dset = CrossDataset(train_corr_df["topic_id"], train_corr_df["content_ids"], train_corr_df["cands"],
                                   topic2text, content2text, CFG.CROSS_NUM_TOKENS, num_cands=CFG.cross_num_cands, is_val=False)
         train_loader = DataLoader(train_dset, batch_size=CFG.batch_size, num_workers=CFG.NUM_WORKERS, shuffle=True)
 
         if CFG.folds != "no":
-            val_topics = set(topics_in_scope[idx] for idx in topics_in_scope_val_idxs)
+            val_topics = set(nonsource_topics[idx] for idx in nonsource_topics_val_idxs)
             val_corr_df = corr_df.loc[corr_df["topic_id"].isin(val_topics), :].reset_index(drop=True)
             val_dset = CrossDataset(val_corr_df["topic_id"], val_corr_df["content_ids"], val_corr_df["cands"],
                                     topic2text, content2text, CFG.CROSS_NUM_TOKENS, CFG.cross_num_cands, is_val=True)
@@ -194,6 +196,7 @@ if __name__ == "__main__":
     parser.add_argument("--cross_dropout", default=0.1, type=float)
     parser.add_argument("--cross_num_cands", required=True, type=int)
     parser.add_argument("--folds", type=str, choices=["first", "all", "no"], default="first")
+    parser.add_argument("--num_folds", type=int, default=3)
     parser.add_argument("--output_dir", type=str, default="../cout")
 
     parser.add_argument("--data_dir", type=str)
@@ -215,6 +218,7 @@ if __name__ == "__main__":
     CFG.cross_dropout = args.cross_dropout
     CFG.cross_num_cands = args.cross_num_cands
     CFG.folds = args.folds
+    CFG.num_folds = args.num_folds
     CFG.output_dir = args.output_dir
 
     if args.data_dir is not None:
