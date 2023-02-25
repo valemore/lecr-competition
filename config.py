@@ -26,6 +26,7 @@ class CFG:
     SCORE_SCALE = 20.0
 
     NUM_NEIGHBORS = 400
+    MAX_NUM_CANDS = 100
 
     # Cross-Encoder
     CROSS_MODEL_NAME = "bert-base-multilingual-uncased"
