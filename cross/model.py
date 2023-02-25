@@ -21,7 +21,8 @@ class CrossEncoder(nn.Module):
         out = self.encoder(input_ids, attention_mask)
         out = out.last_hidden_state
         # CLS pooling
-        out = out[:, 0, :] # TODO: ???
+        # TODO: Other pooling strategies
+        out = out[:, 0, :]
         out = self.dropout(out)
         out = self.classifier(out)
         return out

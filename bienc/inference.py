@@ -115,7 +115,7 @@ def get_cand_df(topic_ids: List[str], distances, indices, e2i: Dict[str, int]) -
     all_topic_cand_ids = []
     for data_id, dists, idxs in zip(topic_ids, distances, indices):
         cands = [i2e[pred_idx] for pred_idx in idxs]
-        # TODO
+        # TODO: Validate: In case no content is predicted, predict nearest neighbor
         # if not cands:
         #     cands = [i2e[idxs[0]]]
         all_topic_cand_ids.append(" ".join(cands))

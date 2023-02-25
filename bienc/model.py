@@ -4,14 +4,20 @@ import torch.nn as nn
 from transformers import AutoModel
 
 from config import CFG
+from bienc.losses import dot_score, cos_sim, l2_dot_score
 
 
 class Biencoder(nn.Module):
-    def __init__(self, score_fn, pretrained_path=None):
+    def __init__(self, pretrained_path=None):
         super().__init__()
         self.topic_encoder = BiencoderModule(pretrained_path)
         self.content_encoder = self.topic_encoder
-        self.score_fn = score_fn
+        if CFG.SCORE_FN == "cos_sim":
+            self.score_fn = cos_sim
+        elif CFG.SCORE_FN == "dot_score":
+            self.score_fn = dot_score
+        elif CFG.SCORE_FN == "l2_dot_score":
+            self.score_fn = l2_dot_score
 
     def forward(self, topic_input_ids, topic_attention_mask, content_input_ids, content_attention_mask):
         topic_emb = self.topic_encoder(topic_input_ids, topic_attention_mask)

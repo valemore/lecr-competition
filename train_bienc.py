@@ -15,7 +15,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 import neptune.new as neptune
 
-from config import CFG, cos_sim, dot_score, to_config_dct
+from config import CFG, to_config_dct
 from bienc.inference import embed_and_nn, entities_inference, predict_entities
 import bienc.tokenizer as tokenizer
 from bienc.typehints import LossFunction
@@ -226,7 +226,7 @@ def main():
                                     topic2text, content2text, CFG.TOPIC_NUM_TOKENS, CFG.CONTENT_NUM_TOKENS, val_t2i, c2i)
             val_loader = DataLoader(val_dset, batch_size=CFG.batch_size, num_workers=CFG.NUM_WORKERS, shuffle=False)
 
-        model = Biencoder(CFG.SCORE_FN).to(device)
+        model = Biencoder().to(device)
         loss_fn = BidirectionalMarginLoss(device, CFG.margin)
 
         optim = AdamW(model.parameters(), lr=CFG.max_lr, weight_decay=CFG.weight_decay)
@@ -259,7 +259,7 @@ def main():
                 # Evaluate inference
                 print(f"Running inference-mode evaluation for epoch {epoch}...")
                 # We need to re-initialize optimizer because evaluate_inference offloads model onto CPU
-                # TODO: Is this actually needed?
+                # Keep for safety. Tests indicate this is not actually needed, but no guarantee from docs.
                 optim = wrap_evaluate_inference(model, device, CFG.batch_size,
                                                 val_corr_df, topic2text, content2text, c2i,
                                                 optim,
@@ -295,7 +295,7 @@ if __name__ == "__main__":
     parser.add_argument("--bienc_model_name", type=str)
     parser.add_argument("--topic_num_tokens", type=int)
     parser.add_argument("--content_num_tokens", type=int)
-    parser.add_argument("--score_fn",choices=["cos_sim", "dot_score"], type=str)
+    parser.add_argument("--score_fn",choices=["cos_sim", "dot_score", "l2_dot_score"], type=str)
     parser.add_argument("--num_workers", type=int)
     parser.add_argument("--num_neighbors", type=int)
 
@@ -323,10 +323,7 @@ if __name__ == "__main__":
     if args.content_num_tokens is not None:
         CFG.CONTENT_NUM_TOKENS = args.content_num_tokens
     if args.score_fn is not None:
-        if args.score_fn == "cos_sim":
-            CFG.SCORE_FN = cos_sim
-        else:
-            CFG.SCORE_FN = dot_score
+        CFG.SCORE_FN = args.score_fn
     if args.num_workers is not None:
         CFG.NUM_WORKERS = args.num_workers
     if args.num_neighbors is not None:

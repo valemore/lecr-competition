@@ -7,8 +7,8 @@ CROSS_EVAL_THRESHS = np.array([round(x, 2) for x in np.arange(-0.2, 0.2 + 0.01, 
 
 
 def get_num_tp_num_fp(probs, topic_ids, concatenated_content_ids, concatenated_cand_ids):
-    num_tp = np.zeros((len(topic_ids), len(CROSS_EVAL_THRESHS)), dtype=int) # TODO: Careful when used as float
-    num_fp = np.zeros((len(topic_ids), len(CROSS_EVAL_THRESHS)), dtype=int) # TODO: Careful when used as float
+    num_tp = np.zeros((len(topic_ids), len(CROSS_EVAL_THRESHS)), dtype=int) # Careful when used as float
+    num_fp = np.zeros((len(topic_ids), len(CROSS_EVAL_THRESHS)), dtype=int) # Careful when used as float
     topic_idx = 0
     prob_idx = 0
     for topic_id, content_ids, cand_ids in zip(topic_ids, concatenated_content_ids, concatenated_cand_ids):

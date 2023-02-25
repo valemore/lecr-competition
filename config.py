@@ -1,13 +1,10 @@
 # Configuration variables that remain unchanged between training runs and those which carry over to production
 from pathlib import Path
 
-from bienc.losses import dot_score, cos_sim
-
 
 def to_config_dct(cfg_class):
     dct = {k: v for k, v in cfg_class.__dict__.items() if not k.startswith("__")}
     dct["DATA_DIR"] = str(dct["DATA_DIR"])
-    dct["SCORE_FN"] = dct["SCORE_FN"].__name__
     dct = {k: v for k, v in dct.items() if v is not None}
     return dct
 
@@ -24,7 +21,9 @@ class CFG:
     BIENC_MODEL_NAME = "bert-base-multilingual-uncased"
     TOPIC_NUM_TOKENS = 128
     CONTENT_NUM_TOKENS = 128
-    SCORE_FN = cos_sim
+    SCORE_FN = "cos_sim"
+    # TODO: Validate scale? Scale as optimizable parameter?
+    SCORE_SCALE = 20.0
 
     NUM_NEIGHBORS = 400
 

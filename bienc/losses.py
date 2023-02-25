@@ -2,6 +2,8 @@
 import torch
 from torch.nn import functional as F
 
+from config import CFG
+
 
 class BidirectionalMarginLoss:
     def __init__(self, device: torch.device, margin: float = 0.0):
@@ -67,10 +69,16 @@ class UnidirectionalMarginLoss:
 
 def dot_score(topic_emb, content_emb):
     """Computes matrix of dot product scores between CONTENT_EMB and TOPIC_EMB."""
-    return content_emb.mm(topic_emb.t())
+    return topic_emb.mm(content_emb.t())
+
+
+def l2_dot_score(topic_emb, content_emb):
+    topic_emb = F.normalize(topic_emb, p=2.0, dim=1)
+    content_emb = F.normalize(content_emb, p=2.0, dim=1)
+    return dot_score(topic_emb, content_emb) * CFG.SCORE_SCALE
 
 
 def cos_sim(topic_emb, content_emb):
     """Computes matrix of scaled cosine similarities between CONTENT_EMB and TOPIC_EMB. Scaling factor is 20."""
     # Scaling factor is chosen to make things easier for the subsequent softmax
-    return F.cosine_similarity(topic_emb.t().unsqueeze(0), content_emb.unsqueeze(-1), dim=1) * 20 # TODO: ???
+    return F.cosine_similarity(topic_emb.t().unsqueeze(0), content_emb.unsqueeze(-1), dim=1) * CFG.SCORE_SCALE

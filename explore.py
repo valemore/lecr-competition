@@ -69,6 +69,15 @@ topic2channel = {}
 for topic_id, channel in zip(topics_df["id"], topics_df["channel"]):
     topic2channel[topic_id] = channel
 
+
+corr_df["num_contents"] = [len(x.split()) for x in corr_df["content_ids"]]
+corr_df["channel"] = [topic2channel[x] for x in corr_df["topic_id"]]
+foo = corr_df.groupby("channel").sum("num_contents")
+channel2num_examples =
+# TODO
+
+
+
 # Content 2 channels
 content2channels = defaultdict(set)
 for topic_id, content_ids in zip(corr_df["topic_id"], corr_df["content_ids"]):
@@ -90,7 +99,8 @@ channel2topics = defaultdict(set)
 for topic_id, channel_id in topic2channel.items():
     channel2topics[channel_id].add(topic_id)
 
-[len(x) for x in channel2topics.values()]
+pd.Series([len(x) for x in channel2topics.values()]).describe()
+# ?
 
 # Language
 content2lang = {}
