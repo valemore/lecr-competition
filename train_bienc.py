@@ -1,3 +1,4 @@
+from datetime import datetime
 import gc
 from argparse import ArgumentParser
 from pathlib import Path
@@ -133,7 +134,7 @@ def evaluate_inference(encoder: BiencoderModule, device: torch.device, batch_siz
     # Thresh metrics
     precision_dct, recall_dct, micro_prec_dct, pcr_dct = get_bienc_thresh_metrics(distances, indices, data_ids, e2i, t2gold)
     avg_precision = get_avg_precision_threshs(distances, indices, data_ids, e2i, t2gold)
-    print(f"Mean average precision @ {CFG.NUM_NEIGHBORS}: {avg_precision:.5}")
+    print(f"Mean average precision (thresh) @ {CFG.NUM_NEIGHBORS}: {avg_precision:.5}")
     run["val/avg_precision"].log(avg_precision, step=global_step)
     log_dct(precision_dct, "val/precision", global_step, run)
     log_dct(recall_dct, "val/recall", global_step, run)
@@ -212,10 +213,13 @@ def main():
 
     del topics_df, content_df
 
+    experiment_id = f'{CFG.experiment_name}_{datetime.utcnow().strftime("%m%d-%H%M%S")}'
+
     fold_idx = 0 if CFG.folds != "no" else -1
     for topics_in_scope_train_idxs, topics_in_scope_val_idxs in KFold(n_splits=5).split(topics_in_scope):
         if (CFG.folds == "first" and fold_idx > 0) or (CFG.folds == "no" and fold_idx == 0):
             break
+        print(f"---*** Training fold {fold_idx} ***---")
         if CFG.folds != "no":
             train_topics = set(topics_in_scope[idx] for idx in topics_in_scope_train_idxs)
         else:
@@ -245,8 +249,9 @@ def main():
         run = neptune.init_run(
             project="vmorelli/kolibri",
             source_files=["**/*.py", "*.py"])
-        run_id = f'{CFG.experiment_name}_{run["sys/id"].fetch()}'
+        run_id = f'{experiment_id}_{run["sys/id"].fetch()}'
         run["run_id"] = run_id
+        run["experiment_id"] = experiment_id
         run["parameters"] = to_config_dct(CFG)
         run["fold_idx"] = fold_idx
         run["part"] = "bienc"
@@ -275,9 +280,10 @@ def main():
                                                           epoch == CFG.num_epochs - 1,
                                                           global_step, run)
                 if epoch == CFG.num_epochs - 1:
-                    (output_dir / f"{run_id}" / "cross").mkdir(parents=True, exist_ok=True)
-                    cross_df_fname = output_dir / f"{run_id}" / "cross" / f"{run_id}_fold-{fold_idx}.csv"
+                    (output_dir / f"{experiment_id}" / "cross").mkdir(parents=True, exist_ok=True)
+                    cross_df_fname = output_dir / f"{experiment_id}" / "cross" / f"{experiment_id}_fold-{fold_idx}.csv"
                     cross_df.to_csv(cross_df_fname, index=False)
+                    print(f"Wrote cross df to {cross_df_fname}")
 
 
         # Save artifacts
@@ -285,11 +291,10 @@ def main():
         (output_dir / f"{run_id}" / "tokenizer").mkdir(parents=True, exist_ok=True)
         model.content_encoder.encoder.save_pretrained(output_dir / f"{run_id}" / "bienc")
         tokenizer.tokenizer.save_pretrained(output_dir / f"{run_id}" / "tokenizer")
+        print(f'Saved model artifacts to {str(output_dir / f"{run_id}")}')
 
         fold_idx += 1
         run.stop()
-
-    return {"run_id": run_id, "CFG": to_config_dct(CFG)}
 
 
 if __name__ == "__main__":
