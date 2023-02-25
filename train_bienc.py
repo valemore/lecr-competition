@@ -193,6 +193,7 @@ def wrap_evaluate_inference(model: Biencoder, device: torch.device, batch_size: 
 def main():
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
     output_dir = Path(CFG.output_dir)
+    cross_output_dir = Path(CFG.cross_output_dir)
 
     content_df = pd.read_csv(CFG.DATA_DIR / "content.csv")
     corr_df = pd.read_csv(CFG.DATA_DIR / "correlations.csv")
@@ -280,8 +281,8 @@ def main():
                                                           epoch == CFG.num_epochs - 1,
                                                           global_step, run)
                 if epoch == CFG.num_epochs - 1:
-                    (output_dir / f"{experiment_id}" / "cross").mkdir(parents=True, exist_ok=True)
-                    cross_df_fname = output_dir / f"{experiment_id}" / "cross" / f"{experiment_id}_fold-{fold_idx}.csv"
+                    (cross_output_dir / f"{experiment_id}").mkdir(parents=True, exist_ok=True)
+                    cross_df_fname = cross_output_dir / f"{experiment_id}" / f"{experiment_id}_fold-{fold_idx}.csv"
                     cross_df.to_csv(cross_df_fname, index=False)
                     print(f"Wrote cross df to {cross_df_fname}")
 
@@ -310,6 +311,7 @@ if __name__ == "__main__":
     parser.add_argument("--folds", type=str, choices=["first", "all", "no"], default="first")
     parser.add_argument("--num_folds", type=int, default=5)
     parser.add_argument("--output_dir", type=str, default="../out")
+    parser.add_argument("--cross_output_dir", type=str, default="../cross")
 
     parser.add_argument("--data_dir", type=str)
     parser.add_argument("--val_split_seed", type=int)
@@ -333,6 +335,7 @@ if __name__ == "__main__":
     CFG.folds = args.folds
     CFG.num_folds = args.num_folds
     CFG.output_dir = args.output_dir
+    CFG.cross_output_dir = args.cross_output_dir
 
     if args.data_dir is not None:
         CFG.DATA_DIR = Path(args.data_dir)
