@@ -2,7 +2,7 @@ import gc
 from argparse import ArgumentParser
 from pathlib import Path
 import random
-from typing import Dict
+from typing import Dict, Tuple, Union
 
 import numpy as np
 import pandas as pd
@@ -15,6 +15,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 import neptune.new as neptune
 
+from bienc.gen_cross import gen_cross_df
 from config import CFG, to_config_dct
 from bienc.inference import embed_and_nn, entities_inference, predict_entities
 import bienc.tokenizer as tokenizer
@@ -112,7 +113,8 @@ def evaluate(model: Biencoder, loss_fn: LossFunction, val_loader: DataLoader, de
 
 def evaluate_inference(encoder: BiencoderModule, device: torch.device, batch_size: int, corr_df: pd.DataFrame,
                        topic2text: Dict[str, str], content2text: Dict[str, str], e2i: Dict[str, int],
-                       global_step: int, run: Run) -> None:
+                       gen_cross: bool,
+                       global_step: int, run: Run) -> Union[None, pd.DataFrame]:
     """Evaluates inference mode."""
     # Make sure entity idxs align
     entity_ids = sorted(list(content2text.keys()))
@@ -167,18 +169,24 @@ def evaluate_inference(encoder: BiencoderModule, device: torch.device, batch_siz
     run[f"val/best_thresh"].log(best_thresh, step=global_step)
     run[f"val/best_F2"].log(best_fscore, step=global_step)
 
+    # Generate cross df
+    if gen_cross:
+        cross_df = gen_cross_df(distances, indices, corr_df, e2i)
+        return cross_df
 
 def wrap_evaluate_inference(model: Biencoder, device: torch.device, batch_size: int, corr_df: pd.DataFrame,
                             topic2text: Dict[str, str], content2text: Dict[str, str], e2i: Dict[str, int],
                             optim: Optimizer,
-                            global_step: int, run: Run) -> Optimizer:
+                            gen_cross: bool,
+                            global_step: int, run: Run) -> Tuple[Optimizer, Union[None, pd.DataFrame]]:
     optimizer_state_dict = optim.state_dict()
-    evaluate_inference(model.topic_encoder, device, batch_size,
-                       corr_df, topic2text, content2text, e2i,
-                       global_step, run)
+    cross_df = evaluate_inference(model.topic_encoder, device, batch_size,
+                                  corr_df, topic2text, content2text, e2i,
+                                  gen_cross,
+                                  global_step, run)
     optim = AdamW(model.parameters(), lr=CFG.max_lr, weight_decay=CFG.weight_decay)
     optim.load_state_dict(optimizer_state_dict)
-    return optim
+    return optim, cross_df
 
 
 def main():
@@ -260,10 +268,16 @@ def main():
                 print(f"Running inference-mode evaluation for epoch {epoch}...")
                 # We need to re-initialize optimizer because evaluate_inference offloads model onto CPU
                 # Keep for safety. Tests indicate this is not actually needed, but no guarantee from docs.
-                optim = wrap_evaluate_inference(model, device, CFG.batch_size,
-                                                val_corr_df, topic2text, content2text, c2i,
-                                                optim,
-                                                global_step, run)
+                optim, cross_df = wrap_evaluate_inference(model, device, CFG.batch_size,
+                                                          val_corr_df, topic2text, content2text, c2i,
+                                                          optim,
+                                                          epoch == CFG.num_epochs - 1,
+                                                          global_step, run)
+                if epoch == CFG.num_epochs - 1:
+                    (output_dir / f"{run_id}" / "cross").mkdir(parents=True, exist_ok=True)
+                    cross_df_fname = output_dir / f"{run_id}" / "cross" / f"{run_id}_fold-{fold_idx}.csv"
+                    cross_df.to_csv(cross_df_fname, index=False)
+
 
         # Save artifacts
         (output_dir / f"{run_id}" / "bienc").mkdir(parents=True, exist_ok=True)

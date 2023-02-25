@@ -20,7 +20,7 @@ from tqdm import tqdm
 import bienc.tokenizer as tokenizer
 from bienc.typehints import LossFunction
 from config import CFG, to_config_dct
-from cross.dset import PositivesNegativesDataset
+from cross.dset import CrossDataset
 from cross.metrics import get_cross_f2, log_fscores
 from cross.model import CrossEncoder
 from data.content import get_content2text
@@ -65,7 +65,7 @@ def train_one_epoch(model: CrossEncoder, loss_fn: LossFunction, loader: DataLoad
     return step
 
 
-def evaluate(model: CrossEncoder, loss_fn: LossFunction, val_loader: DataLoader, device: torch.device, num_gold: int,
+def evaluate(model: CrossEncoder, loss_fn: LossFunction, val_loader: DataLoader, device: torch.device,
              global_step: int, run: Run):
     all_probs = []
     loss_cumsum = 0.0
@@ -124,16 +124,15 @@ def main():
         topic2text = get_topic2text(topics_df)
         content2text = get_content2text(content_df)
 
-        train_dset = PositivesNegativesDataset(train_corr_df["topic_id"], train_corr_df["content_ids"], train_corr_df["cands"],
-                                               topic2text, content2text, CFG.CROSS_NUM_TOKENS)
+        train_dset = CrossDataset(train_corr_df["topic_id"], train_corr_df["content_ids"], train_corr_df["cands"],
+                                  topic2text, content2text, CFG.CROSS_NUM_TOKENS, num_cands=CFG.cross_num_cands, is_val=False)
         train_loader = DataLoader(train_dset, batch_size=CFG.batch_size, num_workers=CFG.NUM_WORKERS, shuffle=True)
 
         if CFG.folds != "no":
             val_topics = set(topics_in_scope[idx] for idx in topics_in_scope_val_idxs)
             val_corr_df = corr_df.loc[corr_df["topic_id"].isin(val_topics), :].reset_index(drop=True)
-            val_num_gold = sum([len(g) for g in get_topic_id_gold(val_corr_df).values()])
-            val_dset = PositivesNegativesDataset(val_corr_df["topic_id"], val_corr_df["content_ids"], val_corr_df["cands"],
-                                                 topic2text, content2text, CFG.CROSS_NUM_TOKENS)
+            val_dset = CrossDataset(val_corr_df["topic_id"], val_corr_df["content_ids"], val_corr_df["cands"],
+                                    topic2text, content2text, CFG.CROSS_NUM_TOKENS, CFG.cross_num_cands, is_val=True)
             val_loader = DataLoader(val_dset, batch_size=CFG.batch_size, num_workers=CFG.NUM_WORKERS, shuffle=False)
 
         model = CrossEncoder(dropout=CFG.cross_dropout).to(device)
@@ -165,7 +164,7 @@ def main():
             if CFG.folds != "no":
                 # Loss and in-batch accuracy for training validation set
                 print(f"Evaluating epoch {epoch}...")
-                all_probs = evaluate(model, loss_fn, val_loader, device, val_num_gold, global_step, run)
+                all_probs = evaluate(model, loss_fn, val_loader, device, global_step, run)
                 fscores = get_cross_f2(all_probs, val_corr_df)
                 del all_probs
                 log_fscores(fscores, global_step, run)
@@ -193,6 +192,7 @@ if __name__ == "__main__":
     parser.add_argument("--experiment_name", type=str, required=True)
     parser.add_argument("--df", type=str, required=True)
     parser.add_argument("--cross_dropout", default=0.1, type=float)
+    parser.add_argument("--cross_num_cands", required=True, type=int)
     parser.add_argument("--folds", type=str, choices=["first", "all", "no"], default="first")
     parser.add_argument("--output_dir", type=str, default="../cout")
 
@@ -213,6 +213,7 @@ if __name__ == "__main__":
     CFG.experiment_name = sanitize_model_name(args.experiment_name)
     CFG.CROSS_CORR_FNAME = args.df
     CFG.cross_dropout = args.cross_dropout
+    CFG.cross_num_cands = args.cross_num_cands
     CFG.folds = args.folds
     CFG.output_dir = args.output_dir
 

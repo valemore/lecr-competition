@@ -44,4 +44,5 @@ class CFG:
     folds = None
     output_dir = None
     cross_dropout = None
+    cross_num_cands = None
 
