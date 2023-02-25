@@ -206,6 +206,12 @@ def main():
     random.seed(CFG.VAL_SPLIT_SEED)
     random.shuffle(topics_in_scope)
 
+    c2i = {content_id: content_idx for content_idx, content_id in enumerate(sorted(set(content_df["id"])))}
+    topic2text = get_topic2text(topics_df)
+    content2text = get_content2text(content_df)
+
+    del topics_df, content_df
+
     fold_idx = 0 if CFG.folds != "no" else -1
     for topics_in_scope_train_idxs, topics_in_scope_val_idxs in KFold(n_splits=5).split(topics_in_scope):
         if (CFG.folds == "first" and fold_idx > 0) or (CFG.folds == "no" and fold_idx == 0):
@@ -216,11 +222,6 @@ def main():
             train_topics = topics_in_scope
         train_corr_df = corr_df.loc[corr_df["topic_id"].isin(train_topics), :].reset_index(drop=True)
         train_t2i = {topic: idx for idx, topic in enumerate(sorted(list(set(train_corr_df["topic_id"]))))}
-
-        c2i = {content_id: content_idx for content_idx, content_id in enumerate(sorted(set(content_df["id"])))}
-        topic2text = get_topic2text(topics_df)
-        content2text = get_content2text(content_df)
-        del topics_df, content_df
 
         train_dset = BiencDataset(train_corr_df["topic_id"], train_corr_df["content_ids"],
                                   topic2text, content2text, CFG.TOPIC_NUM_TOKENS, CFG.CONTENT_NUM_TOKENS, train_t2i, c2i)
