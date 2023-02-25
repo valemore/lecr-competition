@@ -111,13 +111,11 @@ def main():
     content2text = get_content2text(content_df)
 
     source_topics, nonsource_topics = get_source_nonsource_topics(corr_df, topics_df)
-    random.seed(CFG.VAL_SPLIT_SEED)
-    random.shuffle(nonsource_topics)
 
     del topics_df, content_df
 
     fold_idx = 0 if CFG.folds != "no" else -1
-    for nonsource_topics_train_idxs, nonsource_topics_val_idxs in KFold(n_splits=CFG.num_folds).split(nonsource_topics):
+    for nonsource_topics_train_idxs, nonsource_topics_val_idxs in KFold(n_splits=CFG.num_folds, shuffle=True, random_state=CFG.VAL_SPLIT_SEED).split(nonsource_topics):
         if (CFG.folds == "first" and fold_idx > 0) or (CFG.folds == "no" and fold_idx == 0):
             break
         if CFG.folds != "no":
