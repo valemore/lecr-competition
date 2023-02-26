@@ -8,7 +8,7 @@ import pandas as pd
 pd.options.display.max_columns = None
 pd.options.display.max_colwidth = None
 
-DATA_DIR = Path("../data")
+DATA_DIR = Path("../../data")
 
 corr_df = pd.read_csv(DATA_DIR / "correlations.csv")
 topics_df = pd.read_csv(DATA_DIR / "topics.csv")
