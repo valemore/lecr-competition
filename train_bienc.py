@@ -18,7 +18,7 @@ import neptune.new as neptune
 from bienc.gen_cross import gen_cross_df
 from ceevee import get_topics_in_corr
 from config import CFG, to_config_dct
-from bienc.inference import embed_and_nn, entities_inference, predict_entities
+from bienc.inference import embed_and_nn, entities_inference, predict_entities, filter_languages
 import bienc.tokenizer as tokenizer
 from bienc.typehints import LossFunction
 from data.content import get_content2text
@@ -28,7 +28,7 @@ from bienc.model import Biencoder, BiencoderModule
 from bienc.losses import BidirectionalMarginLoss
 from metrics import get_fscore
 from utils import get_learning_rate_momentum, flatten_content_ids, are_entity_ids_aligned, get_topic_id_gold, \
-    sanitize_model_name
+    sanitize_model_name, get_t2lang_c2lang
 from bienc.metrics import get_bienc_thresh_metrics, log_dct, BIENC_STANDALONE_THRESHS, get_log_mir_metrics, \
     get_bienc_cands_metrics, get_average_precision_cands, get_avg_precision_threshs
 
@@ -114,6 +114,7 @@ def evaluate(model: Biencoder, loss_fn: LossFunction, val_loader: DataLoader, de
 
 def evaluate_inference(encoder: BiencoderModule, device: torch.device, batch_size: int, corr_df: pd.DataFrame,
                        topic2text: Dict[str, str], content2text: Dict[str, str], e2i: Dict[str, int],
+                       filter_lang: bool, t2lang: Dict[str, str], c2lang: Dict[str, str],
                        gen_cross: bool,
                        global_step: int, run: Run) -> Union[None, pd.DataFrame]:
     """Evaluates inference mode."""
@@ -127,6 +128,12 @@ def evaluate_inference(encoder: BiencoderModule, device: torch.device, batch_siz
     # Get nearest neighbor distances and indices
     data_ids = sorted(list(set(corr_df["topic_id"])))
     distances, indices = entities_inference(data_ids, encoder, nn_model, topic2text, device, batch_size)
+
+    # Filter languages
+    if filter_lang:
+        e2i = e2i.copy()
+        e2i["dummy"] = -1
+        distances, indices = filter_languages(distances, indices, data_ids, e2i, t2lang, c2lang)
 
     # Metrics
     t2gold = get_topic_id_gold(corr_df)
@@ -178,11 +185,13 @@ def evaluate_inference(encoder: BiencoderModule, device: torch.device, batch_siz
 def wrap_evaluate_inference(model: Biencoder, device: torch.device, batch_size: int, corr_df: pd.DataFrame,
                             topic2text: Dict[str, str], content2text: Dict[str, str], e2i: Dict[str, int],
                             optim: Optimizer,
+                            filter_lang: bool, t2lang: Dict[str, str], c2lang: Dict[str, str],
                             gen_cross: bool,
                             global_step: int, run: Run) -> Tuple[Optimizer, Union[None, pd.DataFrame]]:
     optimizer_state_dict = optim.state_dict()
     cross_df = evaluate_inference(model.topic_encoder, device, batch_size,
                                   corr_df, topic2text, content2text, e2i,
+                                  filter_lang, t2lang, c2lang,
                                   gen_cross,
                                   global_step, run)
     optim = AdamW(model.parameters(), lr=CFG.max_lr, weight_decay=CFG.weight_decay)
@@ -198,12 +207,14 @@ def main():
     content_df = pd.read_csv(CFG.DATA_DIR / "content.csv")
     corr_df = pd.read_csv(CFG.DATA_DIR / "correlations.csv")
     topics_df = pd.read_csv(CFG.DATA_DIR / "topics.csv")
+    corr_df = corr_df.merge(topics_df.loc[:, ["id", "language"]], left_on="topic_id", right_on="id", how="left")
 
     if CFG.tiny:
         corr_df = corr_df.sample(1000).reset_index(drop=True)
         content_df = content_df.loc[content_df["id"].isin(
             set(flatten_content_ids(corr_df)) | set(content_df["id"].sample(1000))), :].reset_index(drop=True)
 
+    t2lang, c2lang = get_t2lang_c2lang(corr_df, content_df)
     topics_in_corr = get_topics_in_corr(corr_df)
 
     c2i = {content_id: content_idx for content_idx, content_id in enumerate(sorted(set(content_df["id"])))}
@@ -276,6 +287,7 @@ def main():
                 optim, cross_df = wrap_evaluate_inference(model, device, CFG.batch_size,
                                                           val_corr_df, topic2text, content2text, c2i,
                                                           optim,
+                                                          CFG.FILTER_LANG, t2lang, c2lang,
                                                           epoch == CFG.num_epochs - 1,
                                                           global_step, run)
                 if epoch == CFG.num_epochs - 1:

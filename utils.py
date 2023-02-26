@@ -78,6 +78,16 @@ def get_topic_id_gold(corr_df: pd.DataFrame) -> Dict[str, Set[str]]:
     return t2gold
 
 
+def get_t2lang_c2lang(corr_df: pd.DataFrame, content_df: pd.DataFrame) -> Tuple[Dict[str, str], Dict[str, str]]:
+    t2lang = {}
+    for topic_id, language in zip(corr_df["topic_id"], corr_df["language"]):
+        t2lang[topic_id] = language
+    c2lang = {}
+    for content_id, language in zip(content_df["id"], content_df["language"]):
+        c2lang[content_id] = language
+    return t2lang, c2lang
+
+
 def is_ordered(data_ids: List[str]) -> bool:
     """Verifies whether DATA_IDS are ordered."""
     if len(data_ids) < 1:

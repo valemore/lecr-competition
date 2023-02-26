@@ -27,6 +27,7 @@ class CFG:
 
     NUM_NEIGHBORS = 400
     MAX_NUM_CANDS = 100
+    FILTER_LANG = True
 
     # Cross-Encoder
     CROSS_MODEL_NAME = "bert-base-multilingual-uncased"

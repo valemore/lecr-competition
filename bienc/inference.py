@@ -1,8 +1,10 @@
 # Inference for the Bi-encoder
 import gc
+import math
 from typing import Any, Dict, List, Set, Tuple
 
 import cupy as cp
+import numpy as np
 import pandas as pd
 import torch
 from cuml import NearestNeighbors
@@ -80,25 +82,50 @@ def predict_entities(topic_ids: List[str], distances, indices, thresh, e2i: Dict
     return t2preds
 
 
-def entities_inference(data_ids: List[str], encoder: BiencoderModule, nn_model: NearestNeighbors,
-                       data2text: Dict[str, str],
+def entities_inference(topic_ids: List[str], encoder: BiencoderModule, nn_model: NearestNeighbors,
+                       t2text: Dict[str, str],
                        device: torch.device, batch_size: int) -> Tuple[Any, Any]:
     """
     Embed data and find their nearest neighbors among entities.
-    :param data_ids: data ids for which we are performing inference
+    :param topic_ids: topic ids for which we are performing inference
     :param encoder: trained Bi-encoder encoder
     :param nn_model: Rapids nearest neighbor data structure
-    :param data2text: dict mapping data ids to their text representations
+    :param t2text: dict mapping topic ids to their text representations
     :param device: device we are running inference on
     :param batch_size: batch size to use
     :return: distances, indices: both are numpy arrays of shape (num_examples, num_neighbors)
     """
-    dset = BiencInferenceDataset(data_ids, data2text, CFG.CONTENT_NUM_TOKENS)
+    dset = BiencInferenceDataset(topic_ids, t2text, CFG.CONTENT_NUM_TOKENS)
     loader = DataLoader(dset, batch_size=batch_size, num_workers=CFG.NUM_WORKERS, shuffle=False)
     embs = embed(encoder, loader, device)
     embs = cp.array(embs)
     distances, indices = nn_model.kneighbors(embs, return_distance=True)
     distances, indices = cp.asnumpy(distances), cp.asnumpy(indices)
+    return distances, indices
+
+
+def filter_languages(distances, indices, topic_ids: List[str], c2i: Dict[str, int], t2lang: Dict[str, str], c2lang: Dict[str, str]):
+    """
+    Filters predicted distances and indices by only allowing candidates that match the topic language.
+    Distances and indices for non-matching languages are deleted and their successors move up in rank.
+    Towards the end of the array where don't end up with any predictions math.inf takes the spot in the distances and
+    -1 in the indices.
+    :param distances: distances output by entities_inference
+    :param indices: indices output by entities_inference
+    :param topic_ids: topic ids in the right order of inference
+    :param c2i: dict mapping content ids to content indices
+    :param t2lang: dict mapping topic ids to topic languages
+    :param c2lang: dict mapping content ids to content languages
+    :return: tuple of modified distances and indices
+    """
+    i2c = {content_idx: content_id for content_id, content_idx in c2i.items()}
+    for i, (topic_id, dists, idxs) in enumerate(zip(topic_ids, distances, indices)):
+        topic_lang = t2lang[topic_id]
+        dists, idxs = zip(*[(dist, idx) for dist, idx in zip(dists, idxs) if c2lang[i2c[idx]] == topic_lang])
+        distances[i, :len(dists)] = np.array(dists, dtype=float)
+        distances[i, len(dists):] = math.inf
+        indices[i, :len(idxs)] = np.array(idxs, dtype=float)
+        indices[i, len(idxs):] = -1
     return distances, indices
 
 
