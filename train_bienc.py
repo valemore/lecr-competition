@@ -2,7 +2,6 @@ from datetime import datetime
 import gc
 from argparse import ArgumentParser
 from pathlib import Path
-import random
 from typing import Dict, Tuple, Union
 
 import numpy as np
@@ -17,7 +16,7 @@ from tqdm import tqdm
 import neptune.new as neptune
 
 from bienc.gen_cross import gen_cross_df
-from ceevee import get_topics_in_scope
+from ceevee import get_topics_in_corr
 from config import CFG, to_config_dct
 from bienc.inference import embed_and_nn, entities_inference, predict_entities
 import bienc.tokenizer as tokenizer
@@ -205,7 +204,7 @@ def main():
         content_df = content_df.loc[content_df["id"].isin(
             set(flatten_content_ids(corr_df)) | set(content_df["id"].sample(1000))), :].reset_index(drop=True)
 
-    topics_in_scope = get_topics_in_scope(corr_df)
+    topics_in_corr = get_topics_in_corr(corr_df)
 
     c2i = {content_id: content_idx for content_idx, content_id in enumerate(sorted(set(content_df["id"])))}
     topic2text = get_topic2text(topics_df)
@@ -216,14 +215,14 @@ def main():
     experiment_id = f'{CFG.experiment_name}_{datetime.utcnow().strftime("%m%d-%H%M%S")}'
 
     fold_idx = 0 if CFG.folds != "no" else -1
-    for topics_in_scope_train_idxs, topics_in_scope_val_idxs in KFold(n_splits=CFG.num_folds, shuffle=True, random_state=CFG.VAL_SPLIT_SEED).split(topics_in_scope):
+    for train_idxs, val_idxs in KFold(n_splits=CFG.num_folds, shuffle=True, random_state=CFG.VAL_SPLIT_SEED).split(topics_in_corr):
         if (CFG.folds == "first" and fold_idx > 0) or (CFG.folds == "no" and fold_idx == 0):
             break
         print(f"---*** Training fold {fold_idx} ***---")
         if CFG.folds != "no":
-            train_topics = set(topics_in_scope[idx] for idx in topics_in_scope_train_idxs)
+            train_topics = set(topics_in_corr[idx] for idx in train_idxs)
         else:
-            train_topics = topics_in_scope
+            train_topics = topics_in_corr
         train_corr_df = corr_df.loc[corr_df["topic_id"].isin(train_topics), :].reset_index(drop=True)
         train_t2i = {topic: idx for idx, topic in enumerate(sorted(list(set(train_corr_df["topic_id"]))))}
 
@@ -232,7 +231,7 @@ def main():
         train_loader = DataLoader(train_dset, batch_size=CFG.batch_size, num_workers=CFG.NUM_WORKERS, shuffle=True)
 
         if CFG.folds != "no":
-            val_topics = set(topics_in_scope[idx] for idx in topics_in_scope_val_idxs)
+            val_topics = set(topics_in_corr[idx] for idx in val_idxs)
             val_corr_df = corr_df.loc[corr_df["topic_id"].isin(val_topics), :].reset_index(drop=True)
             val_t2i = {topic: idx for idx, topic in enumerate(sorted(list(set(val_corr_df["topic_id"]))))}
             val_dset = BiencDataset(val_corr_df["topic_id"], val_corr_df["content_ids"],

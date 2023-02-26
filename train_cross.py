@@ -115,11 +115,11 @@ def main():
     del topics_df, content_df
 
     fold_idx = 0 if CFG.folds != "no" else -1
-    for nonsource_topics_train_idxs, nonsource_topics_val_idxs in KFold(n_splits=CFG.num_folds, shuffle=True, random_state=CFG.VAL_SPLIT_SEED).split(nonsource_topics):
+    for train_idxs, val_idxs in KFold(n_splits=CFG.num_folds, shuffle=True, random_state=CFG.VAL_SPLIT_SEED).split(nonsource_topics):
         if (CFG.folds == "first" and fold_idx > 0) or (CFG.folds == "no" and fold_idx == 0):
             break
         if CFG.folds != "no":
-            train_topics = set(nonsource_topics[idx] for idx in nonsource_topics_train_idxs) | set(source_topics)
+            train_topics = set(nonsource_topics[idx] for idx in train_idxs) | set(source_topics)
         else:
             train_topics = set(corr_df["topic_id"])
         train_corr_df = corr_df.loc[corr_df["topic_id"].isin(train_topics), :].reset_index(drop=True)
@@ -129,7 +129,7 @@ def main():
         train_loader = DataLoader(train_dset, batch_size=CFG.batch_size, num_workers=CFG.NUM_WORKERS, shuffle=True)
 
         if CFG.folds != "no":
-            val_topics = set(nonsource_topics[idx] for idx in nonsource_topics_val_idxs)
+            val_topics = set(nonsource_topics[idx] for idx in val_idxs)
             val_corr_df = corr_df.loc[corr_df["topic_id"].isin(val_topics), :].reset_index(drop=True)
             val_dset = CrossDataset(val_corr_df["topic_id"], val_corr_df["content_ids"], val_corr_df["cands"],
                                     topic2text, content2text, CFG.CROSS_NUM_TOKENS, CFG.cross_num_cands, is_val=True)
