@@ -16,6 +16,7 @@ from tqdm import tqdm
 import neptune.new as neptune
 
 from bienc.gen_cross import gen_cross_df
+from bienc.sampler import SameLanguageSampler
 from ceevee import get_topics_in_corr
 from config import CFG, to_config_dct
 from bienc.inference import embed_and_nn, entities_inference, predict_entities, filter_languages
@@ -238,16 +239,20 @@ def main():
         train_t2i = {topic: idx for idx, topic in enumerate(sorted(list(set(train_corr_df["topic_id"]))))}
 
         train_dset = BiencDataset(train_corr_df["topic_id"], train_corr_df["content_ids"],
+                                  train_corr_df["language"],
                                   topic2text, content2text, CFG.TOPIC_NUM_TOKENS, CFG.CONTENT_NUM_TOKENS, train_t2i, c2i)
-        train_loader = DataLoader(train_dset, batch_size=CFG.batch_size, num_workers=CFG.NUM_WORKERS, shuffle=True)
+        train_loader = DataLoader(train_dset, num_workers=CFG.NUM_WORKERS,
+                                  batch_sampler=SameLanguageSampler(train_dset, CFG.batch_size))
 
         if CFG.folds != "no":
             val_topics = set(topics_in_corr[idx] for idx in val_idxs)
             val_corr_df = corr_df.loc[corr_df["topic_id"].isin(val_topics), :].reset_index(drop=True)
             val_t2i = {topic: idx for idx, topic in enumerate(sorted(list(set(val_corr_df["topic_id"]))))}
             val_dset = BiencDataset(val_corr_df["topic_id"], val_corr_df["content_ids"],
+                                    val_corr_df["language"],
                                     topic2text, content2text, CFG.TOPIC_NUM_TOKENS, CFG.CONTENT_NUM_TOKENS, val_t2i, c2i)
-            val_loader = DataLoader(val_dset, batch_size=CFG.batch_size, num_workers=CFG.NUM_WORKERS, shuffle=False)
+            val_loader = DataLoader(val_dset, num_workers=CFG.NUM_WORKERS,
+                                    batch_sampler=SameLanguageSampler(val_dset, CFG.batch_size))
 
         model = Biencoder().to(device)
         loss_fn = BidirectionalMarginLoss(device, CFG.margin)

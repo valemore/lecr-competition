@@ -12,6 +12,7 @@ class BiencDataset(Dataset):
     """Biencoder dataset to be used for training."""
     def __init__(self,
                  topic_ids: Iterable[str], topic_content_ids: Iterable[str],
+                 topic_langs: Iterable[str],
                  topic2text: Dict[str, str], content2text: Dict[str, str],
                  topic_num_tokens: int, content_num_tokens: int,
                  t2i: Dict[str, int], c2i: Dict[str, int]):
@@ -19,6 +20,7 @@ class BiencDataset(Dataset):
         Training dataset for the bi-encoder embedding content and topic texts into the same space.
         :param topic_ids: iterable over topic ids
         :param topic_content_ids: iterable over concatenated content ids
+        :param topic_langs: iterable over topic languages
         :param topic2text: dictionary mapping topic to its text representation
         :param content2text: dictionary mapping content to its text representation
         :param topic_num_tokens: how many tokens to use for topic representation
@@ -28,6 +30,7 @@ class BiencDataset(Dataset):
         """
         self.topic_ids = []
         self.content_ids = []
+        self.topic_langs = []
         self.topic2text = topic2text
         self.content2text = content2text
         self.topic_num_tokens = topic_num_tokens
@@ -37,10 +40,11 @@ class BiencDataset(Dataset):
         self.c2i = c2i
         self.i2c = {idx: content_id for content_id, idx in self.c2i.items()}
 
-        for topic_id, content_ids in tqdm(zip(topic_ids, topic_content_ids)):
+        for topic_id, content_ids, topic_lang in tqdm(zip(topic_ids, topic_content_ids, topic_langs)):
             for content_id in content_ids.split():
                 self.topic_ids.append(topic_id)
                 self.content_ids.append(content_id)
+                self.topic_langs.append(topic_lang)
 
     def __getitem__(self, idx):
         topic_encoded = tokenize(self.topic2text[self.topic_ids[idx]], self.topic_num_tokens)
