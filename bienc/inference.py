@@ -121,11 +121,17 @@ def filter_languages(distances, indices, topic_ids: List[str], c2i: Dict[str, in
     i2c = {content_idx: content_id for content_id, content_idx in c2i.items()}
     for i, (topic_id, dists, idxs) in enumerate(zip(topic_ids, distances, indices)):
         topic_lang = t2lang[topic_id]
-        dists, idxs = zip(*[(dist, idx) for dist, idx in zip(dists, idxs) if c2lang[i2c[idx]] == topic_lang])
-        distances[i, :len(dists)] = np.array(dists, dtype=float)
-        distances[i, len(dists):] = math.inf
-        indices[i, :len(idxs)] = np.array(idxs, dtype=float)
-        indices[i, len(idxs):] = -1
+        matching_lang = [(dist, idx) for dist, idx in zip(dists, idxs) if c2lang[i2c[idx]] == topic_lang]
+        if matching_lang:
+            dists, idxs = zip(*matching_lang)
+            distances[i, :len(dists)] = np.array(dists, dtype=float)
+            distances[i, len(dists):] = math.inf
+            indices[i, :len(idxs)] = np.array(idxs, dtype=float)
+            indices[i, len(idxs):] = -1
+        else:
+            distances[i, :] = math.inf
+            indices[i, :] = -1
+
     return distances, indices
 
 
