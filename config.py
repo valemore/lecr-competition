@@ -14,8 +14,9 @@ class CFG:
     DATA_DIR = Path("../data")
     NUM_WORKERS = 24
 
-    # Validation set size and training seed
+    # Validation split seed and training seed
     VAL_SPLIT_SEED = 623
+    TRAINING_SEED = 23227
 
     # Bi-Encoder
     BIENC_MODEL_NAME = "bert-base-multilingual-uncased"

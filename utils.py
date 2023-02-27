@@ -1,12 +1,32 @@
 # Utility functions
+import os
 import pickle
+import random
 from collections import defaultdict, OrderedDict
 from typing import Union, Callable, Any, Tuple, Dict, List, Set
 
+import numpy as np
 import pandas as pd
 import torch
 
 from typehints import FName, StateDict
+
+
+def seed_everything(seed):
+    """
+    Makes results as reproducible as possible.
+    https://pytorch.org/docs/stable/notes/randomness.html
+    """
+    random.seed(seed)
+    os.environ["PYTHONHASHSEED"] = str(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
+        torch.backends.cudnn.deterministic = True # Choose deterministic algorithms
+        torch.backends.cudnn.benchmark = False    # Don't benchmark algorithms and choose fastest
+        torch.backends.cudnn.enabled = True
 
 
 def get_learning_rate_momentum(optimizer: torch.optim.Optimizer) -> Tuple[float, Union[float, None]]:

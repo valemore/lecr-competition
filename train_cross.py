@@ -26,12 +26,8 @@ from cross.metrics import get_cross_f2, log_fscores, get_positive_class_ratio
 from cross.model import CrossEncoder
 from data.content import get_content2text
 from data.topics import get_topic2text
-from utils import get_learning_rate_momentum, flatten_positive_negative_content_ids, sanitize_model_name
-
-warnings.filterwarnings("error", category=NeptuneDeprecationWarning)
-
-
-tokenizer.init_tokenizer()
+from utils import get_learning_rate_momentum, flatten_positive_negative_content_ids, sanitize_model_name, \
+    seed_everything
 
 
 def train_one_epoch(model: CrossEncoder, loss_fn: LossFunction, loader: DataLoader, device: torch.device,
@@ -199,6 +195,7 @@ if __name__ == "__main__":
 
     parser.add_argument("--data_dir", type=str)
     parser.add_argument("--val_split_seed", type=int)
+    parser.add_argument("--training_seed", type=int)
     parser.add_argument("--cross_model_name", type=str)
     parser.add_argument("--cross_num_tokens", type=int)
     parser.add_argument("--num_workers", type=int)
@@ -223,11 +220,16 @@ if __name__ == "__main__":
         CFG.DATA_DIR = Path(args.data_dir)
     if args.val_split_seed is not None:
         CFG.VAL_SPLIT_SEED = args.val_split_seed
+    if args.training_seed is not None:
+        CFG.TRAINING_SEED = args.training_seed
     if args.cross_model_name is not None:
         CFG.CROSS_MODEL_NAME = args.cross_model_name
     if args.cross_num_tokens is not None:
         CFG.CROSS_NUM_TOKENS = args.cross_num_tokens
     if args.num_workers is not None:
         CFG.NUM_WORKERS = args.num_workers
+
+    seed_everything(CFG.TRAINING_SEED)
+    tokenizer.init_tokenizer()
 
     main()

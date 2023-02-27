@@ -29,11 +29,9 @@ from bienc.model import Biencoder, BiencoderModule
 from bienc.losses import BidirectionalMarginLoss
 from metrics import get_fscore
 from utils import get_learning_rate_momentum, flatten_content_ids, are_entity_ids_aligned, get_topic_id_gold, \
-    sanitize_model_name, get_t2lang_c2lang
+    sanitize_model_name, get_t2lang_c2lang, seed_everything
 from bienc.metrics import get_bienc_thresh_metrics, log_dct, BIENC_STANDALONE_THRESHS, get_log_mir_metrics, \
     get_bienc_cands_metrics, get_average_precision_cands, get_avg_precision_threshs
-
-tokenizer.init_tokenizer()
 
 
 def train_one_epoch(model: Biencoder, loss_fn: LossFunction, train_loader: DataLoader, device: torch.device,
@@ -339,6 +337,7 @@ if __name__ == "__main__":
 
     parser.add_argument("--data_dir", type=str)
     parser.add_argument("--val_split_seed", type=int)
+    parser.add_argument("--training_seed", type=int)
     parser.add_argument("--bienc_model_name", type=str)
     parser.add_argument("--topic_num_tokens", type=int)
     parser.add_argument("--content_num_tokens", type=int)
@@ -365,6 +364,8 @@ if __name__ == "__main__":
         CFG.DATA_DIR = Path(args.data_dir)
     if args.val_split_seed is not None:
         CFG.VAL_SPLIT_SEED = args.val_split_seed
+    if args.training_seed is not None:
+        CFG.TRAINING_SEED = args.training_seed
     if args.bienc_model_name is not None:
         CFG.BIENC_MODEL_NAME = args.bienc_model_name
     if args.topic_num_tokens is not None:
@@ -377,5 +378,8 @@ if __name__ == "__main__":
         CFG.NUM_WORKERS = args.num_workers
     if args.num_neighbors is not None:
         CFG.NUM_NEIGHBORS = args.num_neighbors
+
+    seed_everything(CFG.TRAINING_SEED)
+    tokenizer.init_tokenizer()
 
     main()
