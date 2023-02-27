@@ -78,13 +78,13 @@ class CrossInferenceDataset(Dataset):
         """
         self.topic_ids = []
         self.content_ids = []
-        self.labels = []
         self.topic2text = topic2text
         self.content2text = content2text
         self.num_tokens = num_tokens
 
         for topic_id, cat_cand_ids, in tqdm(zip(topic_ids, topic_cand_ids)):
-            cand_ids = set(cat_cand_ids.split())
+            cand_ids = cat_cand_ids.split()
+            assert len(set(cand_ids)) == len(cand_ids)
             for content_id in cand_ids:
                 self.topic_ids.append(topic_id)
                 self.content_ids.append(content_id)
