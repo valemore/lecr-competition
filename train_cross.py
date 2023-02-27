@@ -180,10 +180,10 @@ def main():
 if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument("--tiny", action="store_true")
-    parser.add_argument("--batch_size", type=int, default=128)
+    parser.add_argument("--batch_size", type=int, default=64)
     parser.add_argument("--max_lr", type=float, default=3e-5)
     parser.add_argument("--weight_decay", type=float, default=0.0)
-    parser.add_argument("--num_epochs", type=int, default=5)
+    parser.add_argument("--num_epochs", type=int, default=3)
     parser.add_argument("--use_fp", action="store_true")
     parser.add_argument("--experiment_name", type=str, required=True)
     parser.add_argument("--df", type=str, required=True)
