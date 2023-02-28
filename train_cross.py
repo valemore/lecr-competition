@@ -168,8 +168,9 @@ def main():
                 del fscores
 
             # Save checkpoint
-            save_checkpoint(checkpoint_dir / f"{run_id}" / f"epoch-{epoch}.pt", global_step,
-                            model.state_dict(), optim.state_dict(), None, scaler.state_dict())
+            if CFG.checkpoint:
+                save_checkpoint(checkpoint_dir / f"{run_id}" / f"epoch-{epoch}.pt", global_step,
+                                model.state_dict(), optim.state_dict(), None, scaler.state_dict())
 
         # Save artifacts
         out_dir = output_dir / f"{run_id}" / "cross"
@@ -197,6 +198,7 @@ if __name__ == "__main__":
     parser.add_argument("--folds", type=str, choices=["first", "all", "no"], default="first")
     parser.add_argument("--num_folds", type=int, default=3)
     parser.add_argument("--output_dir", type=str, default="../cout")
+    parser.add_argument("--checkpoint", action="store_true")
     parser.add_argument("--checkpoint_dir", type=str, default="../check-cross")
 
     parser.add_argument("--data_dir", type=str)
@@ -221,6 +223,7 @@ if __name__ == "__main__":
     CFG.folds = args.folds
     CFG.num_folds = args.num_folds
     CFG.output_dir = args.output_dir
+    CFG.checkpoint = args.checkpoint
     CFG.checkpoint_dir = args.checkpoint_dir
 
     if args.data_dir is not None:
