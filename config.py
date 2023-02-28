@@ -20,8 +20,8 @@ class CFG:
 
     # Bi-Encoder
     BIENC_MODEL_NAME = "bert-base-multilingual-uncased"
-    TOPIC_NUM_TOKENS = 128
-    CONTENT_NUM_TOKENS = 128
+    TOPIC_NUM_TOKENS = 64
+    CONTENT_NUM_TOKENS = 64
     SCORE_FN = "cos_sim"
     # TODO: Validate scale? Scale as optimizable parameter?
     SCORE_SCALE = 20.0
