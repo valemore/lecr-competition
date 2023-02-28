@@ -3,6 +3,7 @@ import os
 import pickle
 import random
 from collections import defaultdict, OrderedDict
+from pathlib import Path
 from typing import Union, Callable, Any, Tuple, Dict, List, Set
 
 import numpy as np
@@ -40,6 +41,7 @@ def get_learning_rate_momentum(optimizer: torch.optim.Optimizer) -> Tuple[float,
 def save_checkpoint(fname: FName, global_step: int,
                     model_state_dict: StateDict, optimizer_state_dict: StateDict, scheduler_state_dict: StateDict, scaler_state_dict: StateDict) -> None:
     """Save dictionary of model and training state to disk."""
+    fname = Path(fname)
     fname.parent.mkdir(parents=True, exist_ok=True)
     torch.save({
         'global_step': global_step,

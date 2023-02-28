@@ -27,7 +27,7 @@ from cross.model import CrossEncoder
 from data.content import get_content2text
 from data.topics import get_topic2text
 from utils import get_learning_rate_momentum, flatten_positive_negative_content_ids, sanitize_model_name, \
-    seed_everything
+    seed_everything, save_checkpoint
 
 
 def train_one_epoch(model: CrossEncoder, loss_fn: LossFunction, loader: DataLoader, device: torch.device,
@@ -89,6 +89,7 @@ def evaluate(model: CrossEncoder, loss_fn: LossFunction, val_loader: DataLoader,
 def main():
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
     output_dir = Path(CFG.output_dir)
+    checkpoint_dir = Path(CFG.checkpoint_dir)
 
     content_df = pd.read_csv(CFG.DATA_DIR / "content.csv")
     corr_df = pd.read_csv(CFG.cross_corr_fname, keep_default_na=False)
@@ -166,6 +167,10 @@ def main():
                 log_fscores(fscores, global_step, run)
                 del fscores
 
+            # Save checkpoint
+            save_checkpoint(checkpoint_dir / f"{run_id}" / f"epoch-{epoch}.pt", global_step,
+                            model.state_dict(), optim.state_dict(), None, scaler.state_dict())
+
         # Save artifacts
         out_dir = output_dir / f"{run_id}" / "cross"
         out_dir.mkdir(parents=True, exist_ok=True)
@@ -192,6 +197,7 @@ if __name__ == "__main__":
     parser.add_argument("--folds", type=str, choices=["first", "all", "no"], default="first")
     parser.add_argument("--num_folds", type=int, default=3)
     parser.add_argument("--output_dir", type=str, default="../cout")
+    parser.add_argument("--checkpoint_dir", type=str, default="../check-cross")
 
     parser.add_argument("--data_dir", type=str)
     parser.add_argument("--val_split_seed", type=int)
@@ -215,6 +221,7 @@ if __name__ == "__main__":
     CFG.folds = args.folds
     CFG.num_folds = args.num_folds
     CFG.output_dir = args.output_dir
+    CFG.checkpoint_dir = args.checkpoint_dir
 
     if args.data_dir is not None:
         CFG.DATA_DIR = Path(args.data_dir)

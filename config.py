@@ -46,6 +46,7 @@ class CFG:
     folds = None
     num_folds = None
     output_dir = None
+    checkpoint_dir = None
     cross_dropout = None
     cross_num_cands = None
     cross_corr_fname = None
