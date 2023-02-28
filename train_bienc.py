@@ -93,12 +93,17 @@ def main():
         run["part"] = "bienc"
 
         lit_model = LitBienc(model, loss_fn,
-                             val_corr_df, topic2text, content2text, c2i, t2lang, c2lang, CFG.max_lr, CFG.weight_decay,
-                             cross_output_dir, experiment_id, fold_idx,
+                             topic2text, content2text, c2i, t2lang, c2lang,
+                             CFG.max_lr, CFG.weight_decay,
+                             cross_output_dir, experiment_id,
+                             CFG.folds, fold_idx, val_corr_df if CFG.folds != "no" else None,
                              run)
-        trainer = pl.Trainer(precision="16-mixed" if CFG.use_amp else "32-true",
+        trainer = pl.Trainer(accelerator="gpu", devices=1,
+                             max_epochs=CFG.num_epochs,
+                             precision=16 if CFG.use_amp else 32,
+                             logger=False,
                              enable_checkpointing=False)
-        trainer.fit(model=lit_model, train_dataloaders=train_loader, val_dataloaders=val_loader,)
+        trainer.fit(model=lit_model, train_dataloaders=train_loader, val_dataloaders=val_loader)
 
         # Save artifacts
         (output_dir / f"{run_id}" / "bienc").mkdir(parents=True, exist_ok=True)
@@ -181,5 +186,6 @@ if __name__ == "__main__":
 
     seed_everything(CFG.TRAINING_SEED)
     tokenizer.init_tokenizer()
+    torch.set_float32_matmul_precision("medium") # TODO?
 
     main()

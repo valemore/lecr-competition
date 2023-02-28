@@ -6,8 +6,7 @@ import numpy as np
 import pandas as pd
 import torch
 from neptune.new import Run
-from torch.optim import Optimizer
-from transformers import AdamW
+from torch.optim import Optimizer, AdamW
 
 from bienc.gen_cross import gen_cross_df
 from bienc.inference import embed_and_nn, entities_inference, filter_languages, predict_entities
@@ -30,16 +29,15 @@ def agg_outputs(outputs):
 
 
 class LitBienc(pl.LightningModule):
-    def __init__(self,
-                 bienc, loss_fn,
-                 val_corr_df, topic2text, content2text, c2i, t2lang, c2lang,
+    def __init__(self, bienc, loss_fn,
+                 topic2text, content2text, c2i, t2lang, c2lang,
                  learning_rate, weigth_decay,
-                 cross_output_dir,
-                 experiment_id, fold_idx, run):
+                 cross_output_dir, experiment_id,
+                 folds, fold_idx, val_corr_df, run):
         super().__init__()
         self.bienc = bienc
         self.loss_fn = loss_fn
-        self.val_corr = val_corr_df
+        self.val_corr_df = val_corr_df
         self.topic2text = topic2text
         self.content2text = content2text
         self.c2i = c2i
@@ -49,6 +47,7 @@ class LitBienc(pl.LightningModule):
         self.weight_decay = weigth_decay
         self.cross_output_dir = cross_output_dir
         self.experiment_id = experiment_id
+        self.folds = folds
         self.fold_idx = fold_idx
         self.run = run
 
@@ -63,11 +62,11 @@ class LitBienc(pl.LightningModule):
         loss = self.loss_fn(scores, mask)
 
         # Log
-        self.run["train/loss"].log(loss.item(), step=batch_idx)
-        lr, momentum = get_learning_rate_momentum(self.optimizers()[0]._optimizer)
-        self.run["lr"].log(lr, step=batch_idx)
+        self.run["train/loss"].log(loss.item(), step=self.global_step)
+        lr, momentum = get_learning_rate_momentum(self.optimizers().optimizer)
+        self.run["lr"].log(lr, step=self.global_step)
         if momentum:
-            self.run["momentum"].log(momentum, step=batch_idx)
+            self.run["momentum"].log(momentum, step=self.global_step)
 
         return loss
 
@@ -100,11 +99,12 @@ class LitBienc(pl.LightningModule):
         self.run["val/loss"].log(dct['acc'], step=self.global_step)
 
     def on_train_epoch_end(self):
-        self.training_step_outputs.clear()  # free memory
+        if self.folds == "no":
+            return
         print(f"Running inference-mode evaluation for epoch {self.current_epoch}...")
-        optim, cross_df = wrap_evaluate_inference(self.model, self.device, CFG.batch_size,
+        optim, cross_df = wrap_evaluate_inference(self.bienc, self.device, CFG.batch_size,
                                                   self.val_corr_df, self.topic2text, self.content2text, self.c2i,
-                                                  self.optimizers()[0]._optimizer,
+                                                  self.optimizers().optimizer,
                                                   CFG.FILTER_LANG, self.t2lang, self.c2lang,
                                                   self.current_epoch == CFG.num_epochs - 1,
                                                   self.global_step, self.run)
