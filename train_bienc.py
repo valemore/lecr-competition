@@ -15,6 +15,8 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 import neptune.new as neptune
 
+import lightning.pytorch as pl
+
 from bienc.gen_cross import gen_cross_df
 from bienc.sampler import SameLanguageSampler
 from ceevee import get_topics_in_corr
@@ -186,6 +188,8 @@ def main():
                                     topic2text, content2text, CFG.TOPIC_NUM_TOKENS, CFG.CONTENT_NUM_TOKENS, val_t2i, c2i)
             val_loader = DataLoader(val_dset, num_workers=CFG.NUM_WORKERS,
                                     batch_sampler=SameLanguageSampler(val_dset, CFG.batch_size))
+        else:
+            val_loader = None
 
         model = Biencoder().to(device)
         loss_fn = BidirectionalMarginLoss(device, CFG.margin)
@@ -202,6 +206,8 @@ def main():
         run["part"] = "bienc"
 
         lit_model = LitBienc(model, loss_fn, CFG.max_lr, CFG.weight_decay, run)
+        trainer = pl.Trainer()
+        trainer.fit(model=lit_model, train_dataloaders=train_loader, val_dataloaders=val_loader)
 
 
 
