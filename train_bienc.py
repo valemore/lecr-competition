@@ -27,6 +27,7 @@ from bienc.dset import BiencDataset
 from data.topics import get_topic2text
 from bienc.model import Biencoder, BiencoderModule
 from bienc.losses import BidirectionalMarginLoss
+from lit import LitBienc
 from metrics import get_fscore
 from utils import get_learning_rate_momentum, flatten_content_ids, are_entity_ids_aligned, get_topic_id_gold, \
     sanitize_model_name, get_t2lang_c2lang, seed_everything
@@ -34,74 +35,8 @@ from bienc.metrics import get_bienc_thresh_metrics, log_dct, BIENC_STANDALONE_TH
     get_bienc_cands_metrics, get_average_precision_cands, get_avg_precision_threshs
 
 
-def train_one_epoch(model: Biencoder, loss_fn: LossFunction, train_loader: DataLoader, device: torch.device,
-                    optim: Optimizer, scheduler, use_amp: bool, scaler: GradScaler, global_step: int, run: Run) -> int:
-    """Train one epoch of Bi-encoder."""
-    step = global_step
-    model.train()
-    for batch in tqdm(train_loader):
-        batch = tuple(x.to(device) for x in batch)
-        *model_input, topic_idxs, content_idxs = batch
-        with torch.cuda.amp.autocast(enabled=use_amp):
-            scores = model(*model_input)
-            mask = torch.full_like(scores, False, dtype=torch.bool)
-            mask[topic_idxs.unsqueeze(-1) == topic_idxs.unsqueeze(0)] = True
-            mask[content_idxs.unsqueeze(-1) == content_idxs.unsqueeze(0)] = True
-            mask.fill_diagonal_(False)
-            loss = loss_fn(scores, mask)
-
-        scaler.scale(loss).backward()
-        scaler.step(optim)
-        scaler.update()
-        optim.zero_grad()
-
-        if scheduler is not None:
-            scheduler.step()
-
-        # Log
-        run["train/loss"].log(loss.item(), step=step)
-        lr, momentum = get_learning_rate_momentum(optim)
-        run["lr"].log(lr, step=step)
-        if momentum:
-            run["momentum"].log(momentum, step=step)
-
-        step += 1
-    return step
-
-
 def evaluate(model: Biencoder, loss_fn: LossFunction, val_loader: DataLoader, device: torch.device, global_step: int,
              run: Run) -> Dict[str, float]:
-    """Performs in-batch validation."""
-    acc_cumsum = 0.0
-    loss_cumsum = 0.0
-    num_examples = 0
-    num_batches = 0
-
-    model.eval()
-    for batch in tqdm(val_loader):
-        batch = tuple(x.to(device) for x in batch)
-        *model_input, topic_idxs, content_idxs = batch
-        with torch.no_grad():
-            scores = model(*model_input)
-            mask = torch.full_like(scores, False, dtype=torch.bool)
-            mask[topic_idxs.unsqueeze(-1) == topic_idxs.unsqueeze(0)] = True
-            mask[content_idxs.unsqueeze(-1) == content_idxs.unsqueeze(0)] = True
-            mask.fill_diagonal_(False)
-            loss = loss_fn(scores, mask)
-
-        scores = scores.cpu().numpy()
-
-        bs = scores.shape[0]
-        preds = np.argmax(scores, axis=1)
-
-        acc_cumsum += np.sum(preds == np.arange(bs))
-        loss_cumsum += loss.item()
-        num_examples += bs
-        num_batches += 1
-
-    acc = acc_cumsum / num_examples
-    loss = loss_cumsum / num_batches
-
     print(f"Evaluation in-batch accuracy: {acc:.5}")
     print(f"Evaluation loss: {loss:.5}")
 
@@ -255,9 +190,6 @@ def main():
         model = Biencoder().to(device)
         loss_fn = BidirectionalMarginLoss(device, CFG.margin)
 
-        optim = AdamW(model.parameters(), lr=CFG.max_lr, weight_decay=CFG.weight_decay)
-        scaler = GradScaler(enabled=CFG.use_amp)
-
         # Prepare logging and saving
         run = neptune.init_run(
             project="vmorelli/kolibri",
@@ -268,6 +200,10 @@ def main():
         run["parameters"] = to_config_dct(CFG)
         run["fold_idx"] = fold_idx
         run["part"] = "bienc"
+
+        lit_model = LitBienc(model, loss_fn, CFG.max_lr, CFG.weight_decay, run)
+
+
 
         # Train
         global_step = 0
