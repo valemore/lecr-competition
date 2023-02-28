@@ -1,138 +1,25 @@
-from datetime import datetime
-import gc
 from argparse import ArgumentParser
+from datetime import datetime
 from pathlib import Path
-from typing import Dict, Tuple, Union
-
-import numpy as np
-import pandas as pd
-import torch
-from neptune.new import Run
-from sklearn.model_selection import KFold
-from torch.cuda.amp import GradScaler
-from torch.optim import AdamW, Optimizer
-from torch.utils.data import DataLoader
-from tqdm import tqdm
-import neptune.new as neptune
 
 import lightning.pytorch as pl
+import neptune.new as neptune
+import pandas as pd
+import torch
+from sklearn.model_selection import KFold
+from torch.utils.data import DataLoader
 
-from bienc.gen_cross import gen_cross_df
+import bienc.tokenizer as tokenizer
+from bienc.dset import BiencDataset
+from bienc.losses import BidirectionalMarginLoss
+from bienc.model import Biencoder
 from bienc.sampler import SameLanguageSampler
 from ceevee import get_topics_in_corr
 from config import CFG, to_config_dct
-from bienc.inference import embed_and_nn, entities_inference, predict_entities, filter_languages
-import bienc.tokenizer as tokenizer
-from bienc.typehints import LossFunction
 from data.content import get_content2text
-from bienc.dset import BiencDataset
 from data.topics import get_topic2text
-from bienc.model import Biencoder, BiencoderModule
-from bienc.losses import BidirectionalMarginLoss
-from lit import LitBienc
-from metrics import get_fscore
-from utils import get_learning_rate_momentum, flatten_content_ids, are_entity_ids_aligned, get_topic_id_gold, \
-    sanitize_model_name, get_t2lang_c2lang, seed_everything
-from bienc.metrics import get_bienc_thresh_metrics, log_dct, BIENC_STANDALONE_THRESHS, get_log_mir_metrics, \
-    get_bienc_cands_metrics, get_average_precision_cands, get_avg_precision_threshs
-
-
-def evaluate(model: Biencoder, loss_fn: LossFunction, val_loader: DataLoader, device: torch.device, global_step: int,
-             run: Run) -> Dict[str, float]:
-    print(f"Evaluation in-batch accuracy: {acc:.5}")
-    print(f"Evaluation loss: {loss:.5}")
-
-    run["val/acc"].log(acc, step=global_step)
-    run["val/loss"].log(loss, step=global_step)
-
-    return {"acc": acc, "loss": loss}
-
-
-def evaluate_inference(encoder: BiencoderModule, device: torch.device, batch_size: int, corr_df: pd.DataFrame,
-                       topic2text: Dict[str, str], content2text: Dict[str, str], e2i: Dict[str, int],
-                       filter_lang: bool, t2lang: Dict[str, str], c2lang: Dict[str, str],
-                       gen_cross: bool,
-                       global_step: int, run: Run) -> Union[None, pd.DataFrame]:
-    """Evaluates inference mode."""
-    # Make sure entity idxs align
-    entity_ids = sorted(list(content2text.keys()))
-    assert are_entity_ids_aligned(entity_ids, e2i)
-
-    # Prepare nearest neighbors data structure for entities
-    nn_model = embed_and_nn(encoder, entity_ids, content2text, CFG.NUM_NEIGHBORS, batch_size, device)
-
-    # Get nearest neighbor distances and indices
-    data_ids = sorted(list(set(corr_df["topic_id"])))
-    distances, indices = entities_inference(data_ids, encoder, nn_model, topic2text, device, batch_size)
-
-    # Filter languages
-    if filter_lang:
-        e2i = e2i.copy()
-        e2i["dummy"] = -1
-        distances, indices = filter_languages(distances, indices, data_ids, e2i, t2lang, c2lang)
-
-    # Metrics
-    t2gold = get_topic_id_gold(corr_df)
-
-    # Thresh metrics
-    precision_dct, recall_dct, micro_prec_dct, pcr_dct = get_bienc_thresh_metrics(distances, indices, data_ids, e2i, t2gold)
-    avg_precision = get_avg_precision_threshs(distances, indices, data_ids, e2i, t2gold)
-    print(f"Mean average precision (thresh) @ {CFG.NUM_NEIGHBORS}: {avg_precision:.5}")
-    run["val/avg_precision"].log(avg_precision, step=global_step)
-    log_dct(precision_dct, "val/precision", global_step, run)
-    log_dct(recall_dct, "val/recall", global_step, run)
-    log_dct(micro_prec_dct, "val/micro_precision", global_step, run)
-    log_dct(pcr_dct, "val/pcr", global_step, run)
-
-    # Cands metrics
-    get_log_mir_metrics(indices, data_ids, e2i, t2gold, global_step, run)
-    precision_dct, recall_dct, micro_prec_dct, pcr_dct = get_bienc_cands_metrics(indices, data_ids, e2i, t2gold, 100)
-    avg_precision = get_average_precision_cands(indices, data_ids, e2i, t2gold)
-    print(f"Mean average precision (cands) @ {CFG.NUM_NEIGHBORS}: {avg_precision:.5}")
-    run["cands/avg_precision"].log(avg_precision, step=global_step)
-    log_dct(precision_dct, "cands/precision", global_step, run)
-    log_dct(recall_dct, "cands/recall", global_step, run)
-    log_dct(micro_prec_dct, "cands/micro_precision", global_step, run)
-    log_dct(pcr_dct, "cands/pcr", global_step, run)
-
-    # Thresholds
-    best_thresh = None
-    best_fscore = -1.0
-    thresh2score = {}
-    for thresh in BIENC_STANDALONE_THRESHS:
-        t2preds = predict_entities(data_ids, distances, indices, thresh, e2i)
-        fscore = get_fscore(t2gold, t2preds)
-        thresh2score[thresh] = fscore
-        if fscore > best_fscore:
-            best_fscore = fscore
-            best_thresh = thresh
-        print(f"validation f2 using threshold {thresh}: {fscore:.5}")
-        run[f"val/F2@{thresh}"].log(fscore, step=global_step)
-    print(f"Best threshold: {best_thresh}")
-    print(f"Best F2 score: {best_fscore}")
-    run[f"val/best_thresh"].log(best_thresh, step=global_step)
-    run[f"val/best_F2"].log(best_fscore, step=global_step)
-
-    # Generate cross df
-    if gen_cross:
-        cross_df = gen_cross_df(distances, indices, corr_df, e2i)
-        return cross_df
-
-def wrap_evaluate_inference(model: Biencoder, device: torch.device, batch_size: int, corr_df: pd.DataFrame,
-                            topic2text: Dict[str, str], content2text: Dict[str, str], e2i: Dict[str, int],
-                            optim: Optimizer,
-                            filter_lang: bool, t2lang: Dict[str, str], c2lang: Dict[str, str],
-                            gen_cross: bool,
-                            global_step: int, run: Run) -> Tuple[Optimizer, Union[None, pd.DataFrame]]:
-    optimizer_state_dict = optim.state_dict()
-    cross_df = evaluate_inference(model.topic_encoder, device, batch_size,
-                                  corr_df, topic2text, content2text, e2i,
-                                  filter_lang, t2lang, c2lang,
-                                  gen_cross,
-                                  global_step, run)
-    optim = AdamW(model.parameters(), lr=CFG.max_lr, weight_decay=CFG.weight_decay)
-    optim.load_state_dict(optimizer_state_dict)
-    return optim, cross_df
+from bienc.trainer import LitBienc
+from utils import flatten_content_ids, sanitize_model_name, get_t2lang_c2lang, seed_everything
 
 
 def main():
@@ -205,42 +92,13 @@ def main():
         run["fold_idx"] = fold_idx
         run["part"] = "bienc"
 
-        lit_model = LitBienc(model, loss_fn, CFG.max_lr, CFG.weight_decay, run)
-        trainer = pl.Trainer()
-        trainer.fit(model=lit_model, train_dataloaders=train_loader, val_dataloaders=val_loader)
-
-
-
-        # Train
-        global_step = 0
-        for epoch in tqdm(range(CFG.num_epochs)):
-            print(f"Training epoch {epoch}...")
-            gc.collect()
-            torch.cuda.empty_cache()
-            global_step = train_one_epoch(model, loss_fn, train_loader, device, optim, None, CFG.use_amp, scaler,
-                                          global_step, run)
-
-            if CFG.folds != "no":
-                # Loss and in-batch accuracy for training validation set
-                print(f"Running in-batch evaluation for epoch {epoch}...")
-                evaluate(model, loss_fn, val_loader, device, global_step, run)
-
-                # Evaluate inference
-                print(f"Running inference-mode evaluation for epoch {epoch}...")
-                # We need to re-initialize optimizer because evaluate_inference offloads model onto CPU
-                # Keep for safety. Tests indicate this is not actually needed, but no guarantee from docs.
-                optim, cross_df = wrap_evaluate_inference(model, device, CFG.batch_size,
-                                                          val_corr_df, topic2text, content2text, c2i,
-                                                          optim,
-                                                          CFG.FILTER_LANG, t2lang, c2lang,
-                                                          epoch == CFG.num_epochs - 1,
-                                                          global_step, run)
-                if epoch == CFG.num_epochs - 1:
-                    (cross_output_dir / f"{experiment_id}").mkdir(parents=True, exist_ok=True)
-                    cross_df_fname = cross_output_dir / f"{experiment_id}" / f"fold-{fold_idx}.csv"
-                    cross_df.to_csv(cross_df_fname, index=False)
-                    print(f"Wrote cross df to {cross_df_fname}")
-
+        lit_model = LitBienc(model, loss_fn,
+                             val_corr_df, topic2text, content2text, c2i, t2lang, c2lang, CFG.max_lr, CFG.weight_decay,
+                             cross_output_dir, experiment_id, fold_idx,
+                             run)
+        trainer = pl.Trainer(precision="16-mixed" if CFG.use_amp else "32-true",
+                             enable_checkpointing=False)
+        trainer.fit(model=lit_model, train_dataloaders=train_loader, val_dataloaders=val_loader,)
 
         # Save artifacts
         (output_dir / f"{run_id}" / "bienc").mkdir(parents=True, exist_ok=True)
