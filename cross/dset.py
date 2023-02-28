@@ -39,6 +39,7 @@ class CrossDataset(Dataset):
         for topic_id, cat_gold_ids, cat_cand_ids, in tqdm(zip(topic_ids, topic_gold_ids, topic_cand_ids)):
             gold_ids = set(cat_gold_ids.split())
             cand_ids = set(cat_cand_ids.split()[:num_cands])
+            cand_ids = cand_ids - {"dummy"}
             if is_val:
                 positive_ids = sorted(list(cand_ids & gold_ids))
             else:
