@@ -3,7 +3,6 @@ from typing import Dict
 
 import pandas as pd
 
-
 def build_text(title: str, description: str, text: str) -> str:
     """
     Builds text representation for a content item.
@@ -13,11 +12,11 @@ def build_text(title: str, description: str, text: str) -> str:
     :return: content item's text representation
     """
     full_text = ""
-    if not pd.isnull(title):
+    if title:
         full_text += title + ". "
-    if not pd.isnull(description):
+    if description:
         full_text += description + ". "
-    if not pd.isnull(text):
+    if text:
         full_text += text + ". "
     return full_text
 

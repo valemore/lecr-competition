@@ -15,7 +15,7 @@ def build_text(topic_id: str, topic2title: Dict[str, str], topic2description: Di
     """
     text = ""
     description = topic2description[topic_id]
-    while topic_id is not None:
+    while topic_id:
         text += topic2title[topic_id] + ". "
         topic_id = topic2parent[topic_id]
     if description:
@@ -33,18 +33,9 @@ def get_topic2text(topics_df: pd.DataFrame) -> Dict[str, str]:
     topic2description = {}
     topic2parent = {}
     for topic_id, title, description, parent_id in zip(topics_df["id"], topics_df["title"], topics_df["description"], topics_df["parent"]):
-        if not pd.isnull(title):
-            topic2title[topic_id] = title
-        else:
-            topic2title[topic_id] = ""
-        if not pd.isnull(description):
-            topic2description[topic_id] = description
-        else:
-            topic2description[topic_id] = ""
-        if not pd.isnull(parent_id):
-            topic2parent[topic_id] = parent_id
-        else:
-            topic2parent[topic_id] = None
+        topic2title[topic_id] = title
+        topic2description[topic_id] = description
+        topic2parent[topic_id] = parent_id
 
     topic2text = {}
     for topic_id in topics_df["id"]:

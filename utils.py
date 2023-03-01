@@ -131,23 +131,6 @@ def are_entity_ids_aligned(entity_ids: List[str], e2i: Dict[str, int]) -> bool:
     return True
 
 
-def sanity_check_inputs(content_df, corr_df, topics_df):
-    content_ids_set = set(content_df["id"])
-    assert len(content_df["id"]) == len(content_ids_set)
-    assert is_ordered(content_df["id"])
-    assert len(corr_df["topic_id"]) == len(set(corr_df["topic_id"]))
-    assert is_ordered(corr_df["topic_id"])
-    topic_ids_set = set(topics_df["id"])
-    assert len(topics_df["id"]) == len(topic_ids_set)
-    assert is_ordered(topics_df["id"])
-
-    for topic_id, content_ids in zip(corr_df["topic_id"], corr_df["content_ids"]):
-        assert topic_id in topic_ids_set
-        assert len(content_ids) > 0
-        for content_id in content_ids.split():
-            assert content_id in content_ids_set
-
-
 def safe_div(num, den):
     """Returns 0.0 if den is zero. Used for precision computation."""
     if den == 0.0:
@@ -164,8 +147,14 @@ def safe_div_np(num, den):
     return out
 
 
-def state_dict_to(state_dict, device: torch.device):
-    out = OrderedDict()
-    for k, v in state_dict.items():
-        out[k] = v.to(device)
-    return out
+def get_dfs(data_dir: FName):
+    data_dir = Path(data_dir)
+    topics_df = pd.read_csv(data_dir / "topics.csv", keep_default_na=False)
+    topics_df["title"] = topics_df["title"].str.strip()
+    topics_df["description"] = topics_df["description"].str.strip()
+    content_df = pd.read_csv(data_dir / "content.csv", keep_default_na=False)
+    content_df["title"] = content_df["title"].str.strip()
+    content_df["description"] = content_df["description"].str.strip()
+    content_df["text"] = content_df["text"].str.strip()
+    corr_df = pd.read_csv(data_dir / "correlations.csv", keep_default_na=False)
+    return topics_df, content_df, corr_df
