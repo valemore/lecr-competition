@@ -96,7 +96,7 @@ class LitBienc(pl.LightningModule):
         print(f"Evaluation in-batch accuracy: {dct['acc']:.5}")
         print(f"Evaluation loss: {dct['loss']:.5}")
         self.run["val/acc"].log(dct['acc'], step=self.global_step)
-        self.run["val/loss"].log(dct['acc'], step=self.global_step)
+        self.run["val/loss"].log(dct['loss'], step=self.global_step)
 
     def on_train_epoch_end(self):
         if self.folds == "no":
