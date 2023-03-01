@@ -120,11 +120,12 @@ def main():
         trainer.fit(model=lit_model, val_dataloaders=val_loader)
 
         # Save artifacts
-        (output_dir / f"{run_id}" / "bienc").mkdir(parents=True, exist_ok=True)
-        (output_dir / f"{run_id}" / "tokenizer").mkdir(parents=True, exist_ok=True)
-        model.content_encoder.encoder.save_pretrained(output_dir / f"{run_id}" / "bienc")
-        tokenizer.tokenizer.save_pretrained(output_dir / f"{run_id}" / "tokenizer")
-        print(f'Saved model artifacts to {str(output_dir / f"{run_id}")}')
+        if not (CFG.tune_bs or CFG.tune_lr):
+            (output_dir / f"{run_id}" / "bienc").mkdir(parents=True, exist_ok=True)
+            (output_dir / f"{run_id}" / "tokenizer").mkdir(parents=True, exist_ok=True)
+            model.content_encoder.encoder.save_pretrained(output_dir / f"{run_id}" / "bienc")
+            tokenizer.tokenizer.save_pretrained(output_dir / f"{run_id}" / "tokenizer")
+            print(f'Saved model artifacts to {str(output_dir / f"{run_id}")}')
 
         fold_idx += 1
         run.stop()

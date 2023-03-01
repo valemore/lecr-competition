@@ -107,11 +107,12 @@ def main():
         trainer.fit(model=lit_model, val_dataloaders=val_loader)
 
         # Save artifacts
-        out_dir = output_dir / f"{run_id}" / "cross"
-        out_dir.mkdir(parents=True, exist_ok=True)
-        # (output_dir / f"{run_id}" / "tokenizer").mkdir(parents=True, exist_ok=True)
-        model.save(out_dir)
-        # tokenizer.tokenizer.save_pretrained(output_dir / f"{run_id}" / "tokenizer")
+        if not (CFG.tune_bs or CFG.tune_lr):
+            out_dir = output_dir / f"{run_id}" / "cross"
+            out_dir.mkdir(parents=True, exist_ok=True)
+            # (output_dir / f"{run_id}" / "tokenizer").mkdir(parents=True, exist_ok=True)
+            model.save(out_dir)
+            # tokenizer.tokenizer.save_pretrained(output_dir / f"{run_id}" / "tokenizer")
 
         fold_idx += 1
         run.stop()
