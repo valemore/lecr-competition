@@ -44,6 +44,8 @@ def main():
     topics_in_corr = get_topics_in_corr(corr_df)
 
     _, c2i = get_content_ids_c2i(content_df)
+    if CFG.FILTER_LANG:
+        c2i["dummy"] = -1
     topic2text = get_topic2text(topics_df)
     content2text = get_content2text(content_df)
 

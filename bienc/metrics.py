@@ -16,9 +16,9 @@ def get_i2c_tp_num_gold(indices, topic_ids: List[str], c2i: Dict[str, int], t2go
     i2c = {content_idx: entity_id for entity_id, content_idx in c2i.items()}
     tp = np.empty_like(indices, dtype=int) # mask indicating whether prediction is a true positive
     num_gold = np.empty(len(topic_ids), dtype=int) # how many content ids are in gold?
-    for i, (idxs, topic_id) in enumerate(zip(indices, topic_ids)):
+    for i, (pred_idxs, topic_id) in enumerate(zip(indices, topic_ids)):
         gold = t2gold[topic_id]
-        tp[i, :] = np.array([int(i2c[idx] in gold) for idx in idxs], dtype=int)
+        tp[i, :] = np.array([int(i2c[pred_idxs] in gold) for pred_idxs in pred_idxs], dtype=int)
         num_gold[i] = len(gold)
     return i2c, tp, num_gold
 
@@ -135,10 +135,10 @@ def get_min_max_ranks(indices, topic_ids: List[str], t2gold: Dict[str, Set[str]]
     min_ranks = np.full(indices.shape[0], -1, dtype=float)
     max_ranks = np.full(indices.shape[0], -1, dtype=float)
     i = 0
-    for idxs, topic_id in zip(indices, topic_ids):
+    for pred_idxs, topic_id in zip(indices, topic_ids):
         gold = t2gold[topic_id]
         gold_idxs = np.array([c2i[g] for g in gold])
-        found = np.argwhere(idxs.reshape(-1, 1) == gold_idxs.reshape(1, -1))[:, 0]
+        found = np.argwhere(pred_idxs.reshape(-1, 1) == gold_idxs.reshape(1, -1))[:, 0]
         if len(found) > 0:
             min_ranks[i] = min(found)
             max_ranks[i] = max(found)
