@@ -43,7 +43,7 @@ class LitBienc(pl.LightningModule):
         self.c2i = c2i
         self.t2lang = t2lang
         self.c2lang = c2lang
-        self.max_lr = learning_rate
+        self.learning_rate = learning_rate
         self.weight_decay = weigth_decay
         self.cross_output_dir = cross_output_dir
         self.experiment_id = experiment_id
@@ -71,7 +71,7 @@ class LitBienc(pl.LightningModule):
         return loss
 
     def configure_optimizers(self):
-        optimizer = torch.optim.AdamW(self.parameters(), lr=self.max_lr, weight_decay=self.weight_decay)
+        optimizer = torch.optim.AdamW(self.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay)
         return optimizer
 
     def validation_step(self, batch, batch_idx):
