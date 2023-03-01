@@ -57,19 +57,6 @@ def sanitize_model_name(model_name: str) -> str:
     return model_name.replace("/", "-")
 
 
-def cache(fname: FName, fn: Callable[[], Any], refresh: bool = False) -> Any:
-    """Helper to cache prepared PyTorch datasets."""
-    fname.parent.mkdir(exist_ok=True, parents=True)
-    if fname.exists() and not refresh:
-        with open(fname, "rb") as f:
-            x = pickle.load(f)
-    else:
-        x = fn()
-        with open(fname, "wb") as f:
-            pickle.dump(x, f)
-    return x
-
-
 def flatten_content_ids(corr_df: pd.DataFrame) -> List[str]:
     """Get flat list of all content ids in the correlation DataFrame."""
     return sorted(list(set([content_id for content_ids in corr_df["content_ids"] for content_id in content_ids.split()])))
@@ -147,7 +134,7 @@ def safe_div_np(num, den):
     return out
 
 
-def get_dfs(data_dir: FName):
+def get_dfs(data_dir: FName, submission=False):
     data_dir = Path(data_dir)
     topics_df = pd.read_csv(data_dir / "topics.csv", keep_default_na=False)
     topics_df["title"] = topics_df["title"].str.strip()
@@ -156,5 +143,16 @@ def get_dfs(data_dir: FName):
     content_df["title"] = content_df["title"].str.strip()
     content_df["description"] = content_df["description"].str.strip()
     content_df["text"] = content_df["text"].str.strip()
-    corr_df = pd.read_csv(data_dir / "correlations.csv", keep_default_na=False)
-    return topics_df, content_df, corr_df
+    if submission:
+        input_df = pd.read_csv(data_dir / "sample_submission.csv", keep_default_na=False)
+        input_df = input_df.sort_values("topic_id").reset_index(drop=True)
+    else:
+        input_df = pd.read_csv(data_dir / "correlations.csv", keep_default_na=False)
+    input_df = input_df.merge(topics_df.loc[:, ["id", "language"]], left_on="topic_id", right_on="id", how="left")
+    return topics_df, content_df, input_df
+
+
+def get_content_ids_c2i(content_df: pd.DataFrame):
+    content_ids = sorted(list(set(content_df["id"])))
+    c2i = {content_id: content_idx for content_idx, content_id in enumerate(content_ids)}
+    return content_ids, c2i

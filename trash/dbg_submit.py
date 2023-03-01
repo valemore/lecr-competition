@@ -8,7 +8,8 @@ import torch
 from sklearn.model_selection import KFold
 from transformers import AutoModel
 
-from bienc.inference import embed_and_nn, entities_inference, predict_entities, get_cand_df
+from bienc.inference import embed_and_nn, entities_inference, predict_entities
+from bienc.gen_cands import get_cand_df
 from bienc.model import BiencoderModule
 from bienc.tokenizer import init_tokenizer
 from config import CFG

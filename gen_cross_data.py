@@ -54,7 +54,7 @@ if __name__ == "__main__":
     print(f"Using {CFG.NUM_NEIGHBORS} neigbors...")
 
     nn_model = embed_and_nn(bienc, content_ids, content2text, CFG.NUM_NEIGHBORS, CFG.batch_size, device)
-    distances, indices = entities_inference(topic_ids, bienc, nn_model, topic2text, device, CFG.batch_size)
+    indices = entities_inference(topic_ids, bienc, nn_model, topic2text, device, CFG.batch_size)
 
     t2gold = get_topic_id_gold(corr_df)
 

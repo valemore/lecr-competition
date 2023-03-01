@@ -9,13 +9,15 @@ from cross.dset import CrossInferenceDataset
 
 def predict(model, dset: CrossInferenceDataset, classifier_thresh: float, batch_size: int, device: torch.device):
     loader = DataLoader(dset, batch_size, num_workers=CFG.NUM_WORKERS, shuffle=False)
-    all_preds = []
+    all_preds = np.empty(len(dset), dtype=int)
     model.eval()
+    i = 0
     for batch in tqdm(loader):
         batch = tuple(x.to(device) for x in batch)
         with torch.no_grad():
             logits = model(*batch)
         probs = logits.softmax(dim=1)[:, 1]
-        all_preds.append((probs >= classifier_thresh).cpu().numpy())
-    all_preds = np.concatenate(all_preds, axis=0).astype(int)
+        bs = logits.shape[0]
+        all_preds[i:(i+bs)] = (probs >= classifier_thresh).cpu().numpy()
+        i += bs
     return all_preds

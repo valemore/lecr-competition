@@ -21,7 +21,8 @@ from data.content import get_content2text
 from data.topics import get_topic2text
 from bienc.trainer import LitBienc
 from ignorewarnings import IGNORE_LIST
-from utils import flatten_content_ids, sanitize_model_name, get_t2lang_c2lang, seed_everything, get_dfs
+from utils import flatten_content_ids, sanitize_model_name, get_t2lang_c2lang, seed_everything, get_dfs, \
+    get_content_ids_c2i
 
 for warning_msg in IGNORE_LIST:
     warnings.filterwarnings("ignore", message=warning_msg)
@@ -33,7 +34,6 @@ def main():
     cross_output_dir = Path(CFG.cross_output_dir)
 
     topics_df, content_df, corr_df = get_dfs(CFG.DATA_DIR)
-    corr_df = corr_df.merge(topics_df.loc[:, ["id", "language"]], left_on="topic_id", right_on="id", how="left")
 
     if CFG.tiny:
         corr_df = corr_df.sample(1000).reset_index(drop=True)
@@ -43,7 +43,7 @@ def main():
     t2lang, c2lang = get_t2lang_c2lang(corr_df, content_df)
     topics_in_corr = get_topics_in_corr(corr_df)
 
-    c2i = {content_id: content_idx for content_idx, content_id in enumerate(sorted(set(content_df["id"])))}
+    _, c2i = get_content_ids_c2i(content_df)
     topic2text = get_topic2text(topics_df)
     content2text = get_content2text(content_df)
 

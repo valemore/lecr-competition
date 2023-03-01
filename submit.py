@@ -6,7 +6,8 @@ import pandas as pd
 import torch
 from transformers import AutoModel
 
-from bienc.inference import embed_and_nn, entities_inference, predict_entities, get_cand_df, filter_languages
+from bienc.inference import embed_and_nn, entities_inference, predict_entities, filter_languages, mistery
+from bienc.gen_cands import get_cand_df
 from bienc.model import BiencoderModule
 from bienc.tokenizer import init_tokenizer
 from config import CFG
@@ -16,7 +17,7 @@ from cross.model import CrossEncoder
 from data.content import get_content2text
 from data.topics import get_topic2text
 from typehints import FName
-from utils import get_t2lang_c2lang
+from utils import get_t2lang_c2lang, get_dfs, get_content_ids_c2i
 
 
 def get_test_topic_ids(fname: FName) -> List[str]:
@@ -47,33 +48,15 @@ def get_submission_df(t2preds: Dict[str, Set[str]]) -> pd.DataFrame:
     return df
 
 
-def standalone_bienc_main(thresh: float, data_dir: FName, tokenizer_dir: FName, bienc_dir: FName, batch_size: int):
-    data_dir = Path(data_dir)
-    device = torch.device("cuda")
-    init_tokenizer(tokenizer_dir)
-
-    content_df, topics_df, topic_ids, content_ids, c2i, topic2text, content2text = get_data(data_dir)
-
-    distances, indices = bienc_main(topic_ids, content_ids, topic2text, content2text,
-                                    bienc_dir, batch_size, device)
-    t2preds = predict_entities(topic_ids, distances, indices, thresh, c2i)
-    submission_df = get_submission_df(t2preds)
-    return submission_df
-
-
 def bienc_main(topic_ids: List[str], content_ids: List[str],
                topic2text: Dict[str, str], content2text: Dict[str, str], c2i: Dict[str, int],
                filter_lang: bool, t2lang: Dict[str, str], c2lang: Dict[str, str],
                bienc_dir: FName, batch_size: int, device: torch.device):
     encoder = get_bienc(bienc_dir, device)
-    nn_model = embed_and_nn(encoder, content_ids, content2text, CFG.NUM_NEIGHBORS, batch_size, device)
-    distances, indices = entities_inference(topic_ids, encoder, nn_model, topic2text, device, batch_size)
-    # Filter languages
-    if filter_lang:
-        c2i = c2i.copy()
-        c2i["dummy"] = -1
-        distances, indices = filter_languages(distances, indices, topic_ids, c2i, t2lang, c2lang)
-    return distances, indices
+    indices = mistery(encoder, topic_ids, content_ids, topic2text, content2text,
+                      filter_lang, t2lang, c2lang, c2i,
+                      batch_size, device)
+    return indices
 
 
 def cross_main(classifier_thresh: float, cand_df: pd.DataFrame, topic2text, content2text, cross_dir: FName,
@@ -84,19 +67,6 @@ def cross_main(classifier_thresh: float, cand_df: pd.DataFrame, topic2text, cont
     return all_preds
 
 
-def get_data(data_dir: FName):
-    content_df = pd.read_csv(data_dir / "content.csv")
-    topics_df = pd.read_csv(data_dir / "topics.csv")
-    topic_ids = get_test_topic_ids(data_dir / "sample_submission.csv")
-    content_ids = sorted(list(set(content_df["id"])))
-    c2i = {content_id: content_idx for content_idx, content_id in enumerate(content_ids)}
-
-    topic2text = get_topic2text(topics_df)
-    content2text = get_content2text(content_df)
-
-    return content_df, topics_df, topic_ids, content_ids, c2i, topic2text, content2text
-
-
 def main(classifier_thresh: float,
          data_dir: FName, tokenizer_dir: FName, bienc_dir: FName, cross_dir: FName,
          filter_lang: bool,
@@ -105,16 +75,20 @@ def main(classifier_thresh: float,
     device = torch.device("cuda")
     init_tokenizer(tokenizer_dir)
 
-    content_df, topics_df, topic_ids, content_ids, c2i, topic2text, content2text = get_data(data_dir)
-    corr_df = pd.DataFrame({"topic_id": topic_ids}).merge(topics_df.loc[:, ["id", "language"]], left_on="topic_id", right_on="id", how="left")
-    t2lang, c2lang = get_t2lang_c2lang(corr_df, content_df)
+    topics_df, content_df, input_df = get_dfs(data_dir, submission=True)
+    topic_ids = sorted(input_df["topic_id"])
+    content_ids, c2i = get_content_ids_c2i(content_df)
+    topic2text = get_topic2text(topics_df)
+    content2text = get_content2text(content_df)
 
-    distances, indices = bienc_main(topic_ids, content_ids,
-                                    topic2text, content2text, c2i,
-                                    filter_lang, t2lang, c2lang,
-                                    bienc_dir, bienc_batch_size, device)
-    cand_df = get_cand_df(topic_ids, distances, indices, c2i)
-    del distances, indices
+    t2lang, c2lang = get_t2lang_c2lang(input_df, content_df)
+
+    indices = bienc_main(topic_ids, content_ids,
+                         topic2text, content2text, c2i,
+                         filter_lang, t2lang, c2lang,
+                         bienc_dir, bienc_batch_size, device)
+    cand_df = get_cand_df(topic_ids, indices, c2i)
+    del indices
     gc.collect()
     all_preds = cross_main(classifier_thresh, cand_df, topic2text, content2text, cross_dir, cross_batch_size, device)
 

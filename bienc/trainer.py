@@ -9,7 +9,7 @@ from neptune.new import Run
 from torch.optim import Optimizer, AdamW
 from torch.optim.lr_scheduler import ReduceLROnPlateau, CosineAnnealingWarmRestarts
 
-from bienc.gen_cross import gen_cross_df
+from bienc.gen_cands import get_cand_df
 from bienc.inference import mistery
 from bienc.metrics import log_dct, get_log_mir_metrics, get_bienc_cands_metrics, get_average_precision_cands
 from bienc.model import BiencoderModule, Biencoder
@@ -180,9 +180,9 @@ def evaluate_inference(encoder: BiencoderModule, device: torch.device, batch_siz
     assert are_entity_ids_aligned(content_ids, c2i)
 
     topic_ids = sorted(list(set(corr_df["topic_id"])))
-    distances, indices = mistery(encoder, topic_ids, content_ids, topic2text, content2text,
-                                 filter_lang, t2lang, c2lang, c2i,
-                                 batch_size, device)
+    indices = mistery(encoder, topic_ids, content_ids, topic2text, content2text,
+                      filter_lang, t2lang, c2lang, c2i,
+                      batch_size, device)
 
     # Metrics
     t2gold = get_topic_id_gold(corr_df)
@@ -200,7 +200,7 @@ def evaluate_inference(encoder: BiencoderModule, device: torch.device, batch_siz
 
     # Generate cross df
     if gen_cross:
-        cross_df = gen_cross_df(indices, corr_df, c2i)
+        cross_df = get_cand_df(indices, corr_df, c2i, CFG.MAX_NUM_CANDS)
     else:
         cross_df = None
     return cross_df, avg_precision
