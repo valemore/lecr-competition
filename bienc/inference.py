@@ -127,11 +127,11 @@ def filter_languages(indices, topic_ids: List[str], c2i: Dict[str, int], t2lang:
     return indices
 
 
-def mistery(encoder: BiencoderModule,
-            topic_ids: List[str], content_ids: List[str],
-            topic2text: Dict[str, str], content2text: Dict[str, str],
-            filter_lang: bool, t2lang: Dict[str, str], c2lang: Dict[str, str], c2i: Dict[str, int],
-            batch_size: int, device: torch.device):
+def do_nn(encoder: BiencoderModule,
+          topic_ids: List[str], content_ids: List[str],
+          topic2text: Dict[str, str], content2text: Dict[str, str],
+          filter_lang: bool, t2lang: Dict[str, str], c2lang: Dict[str, str], c2i: Dict[str, int],
+          batch_size: int, device: torch.device):
     # Prepare nearest neighbors data structure for entities
     nn_model = embed_and_nn(encoder, content_ids, content2text, CFG.NUM_NEIGHBORS, batch_size, device)
 

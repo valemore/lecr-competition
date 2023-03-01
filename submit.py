@@ -6,7 +6,7 @@ import pandas as pd
 import torch
 
 from bienc.gen_cands import get_cand_df
-from bienc.inference import mistery
+from bienc.inference import do_nn
 from bienc.model import BiencoderModule
 from bienc.tokenizer import init_tokenizer
 from config import CFG
@@ -52,9 +52,9 @@ def bienc_main(topic_ids: List[str], content_ids: List[str],
                filter_lang: bool, t2lang: Dict[str, str], c2lang: Dict[str, str],
                bienc_dir: FName, batch_size: int, device: torch.device):
     encoder = get_bienc(bienc_dir, device)
-    indices = mistery(encoder, topic_ids, content_ids, topic2text, content2text,
-                      filter_lang, t2lang, c2lang, c2i,
-                      batch_size, device)
+    indices = do_nn(encoder, topic_ids, content_ids, topic2text, content2text,
+                    filter_lang, t2lang, c2lang, c2i,
+                    batch_size, device)
     return indices
 
 

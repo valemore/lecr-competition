@@ -10,7 +10,7 @@ from torch.optim import Optimizer, AdamW
 from torch.optim.lr_scheduler import ReduceLROnPlateau, CosineAnnealingWarmRestarts
 
 from bienc.gen_cands import get_cand_df
-from bienc.inference import mistery
+from bienc.inference import do_nn
 from bienc.metrics import log_dct, get_log_mir_metrics, get_bienc_cands_metrics, get_average_precision_cands
 from bienc.model import BiencoderModule, Biencoder
 from config import CFG
@@ -180,9 +180,9 @@ def evaluate_inference(encoder: BiencoderModule, device: torch.device, batch_siz
     assert are_content_ids_aligned(content_ids, c2i)
 
     topic_ids = sorted(list(set(corr_df["topic_id"])))
-    indices = mistery(encoder, topic_ids, content_ids, topic2text, content2text,
-                      filter_lang, t2lang, c2lang, c2i,
-                      batch_size, device)
+    indices = do_nn(encoder, topic_ids, content_ids, topic2text, content2text,
+                    filter_lang, t2lang, c2lang, c2i,
+                    batch_size, device)
 
     # Metrics
     t2gold = get_topic_id_gold(corr_df)
