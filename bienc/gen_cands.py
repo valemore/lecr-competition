@@ -12,12 +12,12 @@ def get_cand_df(topic_ids: List[str], indices, c2i: Dict[str, int], max_num_cand
     :param max_num_cands: maximum number of candidates to include in the dataframe
     :return: dataframe with two columns: topic ids and concatenated candidate ids
     """
-    i2e = {entity_idx: entity_id for entity_id, entity_idx in c2i.items()}
+    i2c = {content_idx: content_id for content_id, content_idx in c2i.items()}
     all_topic_cand_ids = []
     for topic_id, pred_idxs in zip(topic_ids, indices):
         if max_num_cands:
             pred_idxs = pred_idxs[:max_num_cands]
-        cands = [i2e[pred_idx] for pred_idx in pred_idxs if pred_idx != -1]
+        cands = [i2c[pred_idx] for pred_idx in pred_idxs if pred_idx != -1]
         if not cands:
             print(f"No matching language candidates for topic id {topic_id}!")
         all_topic_cand_ids.append(" ".join(cands))

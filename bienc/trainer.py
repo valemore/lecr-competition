@@ -200,7 +200,7 @@ def evaluate_inference(encoder: BiencoderModule, device: torch.device, batch_siz
 
     # Generate cross df
     if gen_cross:
-        cross_df = get_cand_df(indices, corr_df, c2i, CFG.MAX_NUM_CANDS)
+        cross_df = get_cand_df(topic_ids, indices,c2i, CFG.MAX_NUM_CANDS)
     else:
         cross_df = None
     return cross_df, avg_precision
