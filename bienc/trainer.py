@@ -33,8 +33,7 @@ class LitBienc(pl.LightningModule):
                  topic2text, content2text, c2i, t2lang, c2lang,
                  learning_rate, weigth_decay,
                  cross_output_dir, experiment_id,
-                 folds, fold_idx, val_corr_df,
-                 run: Run):
+                 folds, fold_idx, val_corr_df, run):
         super().__init__()
         self.bienc = bienc
         self.loss_fn = loss_fn
@@ -51,7 +50,7 @@ class LitBienc(pl.LightningModule):
         self.folds = folds
         self.fold_idx = fold_idx
         self.run = run
-        self.lit_logger = None
+        self.log_prefix = ""
 
     def training_step(self, batch, batch_idx):
         *model_input, topic_idxs, content_idxs = batch
@@ -64,11 +63,11 @@ class LitBienc(pl.LightningModule):
         loss = self.loss_fn(scores, mask)
 
         # Log
-        self.lit_logger.log("loss", loss.item(), step=self.global_step)
+        self.run[f"{self.log_prefix}loss"].log(loss.item(), step=self.global_step)
         lr, momentum = get_learning_rate_momentum(self.optimizers().optimizer)
-        self.lit_logger.log("lr", lr, step=self.global_step)
+        self.run[f"{self.log_prefix}lr"].log(lr, step=self.global_step)
         if momentum:
-            self.lit_logger.log("momentum", momentum, step=self.global_step)
+            self.run[f"{self.log_prefix}momentum"].log(momentum, step=self.global_step)
 
         return loss
 
