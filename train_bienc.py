@@ -1,3 +1,4 @@
+import warnings
 from argparse import ArgumentParser
 from datetime import datetime
 from pathlib import Path
@@ -18,8 +19,13 @@ from ceevee import get_topics_in_corr
 from config import CFG, to_config_dct
 from data.content import get_content2text
 from data.topics import get_topic2text
-from bienc.trainer import LitBienc
+from bienc.trainer import LitBienc, GLB
+from ignorewarnings import IGNORE_LIST
 from utils import flatten_content_ids, sanitize_model_name, get_t2lang_c2lang, seed_everything
+
+
+for warning_msg in IGNORE_LIST:
+    warnings.filterwarnings("ignore", message=warning_msg)
 
 
 def main():
@@ -104,9 +110,9 @@ def main():
                              logger=False,
                              enable_checkpointing=False,
                              auto_lr_find=True)
-        trainer.log_prefix = "tune/"
+        GLB.log_prefix = "tune/"
         trainer.tune(model=lit_model, train_dataloaders=train_loader)
-        trainer.log_prefix = ""
+        GLB.log_prefix = ""
         trainer.fit(model=lit_model, train_dataloaders=train_loader, val_dataloaders=val_loader)
 
         # Save artifacts
