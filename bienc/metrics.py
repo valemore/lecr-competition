@@ -135,8 +135,8 @@ def get_min_max_ranks(indices, topic_ids: List[str], t2gold: Dict[str, Set[str]]
     min_ranks = np.full(indices.shape[0], -1, dtype=float)
     max_ranks = np.full(indices.shape[0], -1, dtype=float)
     i = 0
-    for idxs, data_id in zip(indices, topic_ids):
-        gold = t2gold[data_id]
+    for idxs, topic_id in zip(indices, topic_ids):
+        gold = t2gold[topic_id]
         gold_idxs = np.array([c2i[g] for g in gold])
         found = np.argwhere(idxs.reshape(-1, 1) == gold_idxs.reshape(1, -1))[:, 0]
         if len(found) > 0:
