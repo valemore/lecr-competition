@@ -102,7 +102,9 @@ def main():
                              max_epochs=CFG.num_epochs,
                              precision=16 if CFG.use_amp else 32,
                              logger=False,
-                             enable_checkpointing=False)
+                             enable_checkpointing=False,
+                             auto_lr_find=True)
+        trainer.tune(model=lit_model, train_dataloaders=train_loader)
         trainer.fit(model=lit_model, train_dataloaders=train_loader, val_dataloaders=val_loader)
 
         # Save artifacts
