@@ -13,7 +13,7 @@ def to_config_dct(cfg_class):
 class CFG:
     # Config options shared between training and inference
     DATA_DIR = Path("../data")
-    NUM_WORKERS = min(36, os.cpu_count())
+    NUM_WORKERS = min(32, os.cpu_count())
 
     # Validation split seed and training seed
     VAL_SPLIT_SEED = 623

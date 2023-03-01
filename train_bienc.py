@@ -66,6 +66,7 @@ def main():
         train_dset = BiencDataset(train_corr_df["topic_id"], train_corr_df["content_ids"],
                                   train_corr_df["language"],
                                   topic2text, content2text, CFG.TOPIC_NUM_TOKENS, CFG.CONTENT_NUM_TOKENS, train_t2i, c2i)
+
         def get_train_loader(batch_size):
             return DataLoader(train_dset, num_workers=CFG.NUM_WORKERS,
                               batch_sampler=SameLanguageSampler(train_dset, batch_size))
