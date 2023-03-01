@@ -29,14 +29,15 @@ def agg_outputs(outputs):
 
 
 class LitBienc(pl.LightningModule):
-    def __init__(self, bienc, loss_fn,
+    def __init__(self, bienc, loss_fn, get_train_loader,
                  topic2text, content2text, c2i, t2lang, c2lang,
-                 learning_rate, weigth_decay,
+                 learning_rate, weigth_decay, batch_size,
                  cross_output_dir, experiment_id,
                  folds, fold_idx, val_corr_df, run):
         super().__init__()
         self.bienc = bienc
         self.loss_fn = loss_fn
+        self.get_train_loader = get_train_loader
         self.val_corr_df = val_corr_df
         self.topic2text = topic2text
         self.content2text = content2text
@@ -45,12 +46,16 @@ class LitBienc(pl.LightningModule):
         self.c2lang = c2lang
         self.learning_rate = learning_rate
         self.weight_decay = weigth_decay
+        self.batch_size = batch_size
         self.cross_output_dir = cross_output_dir
         self.experiment_id = experiment_id
         self.folds = folds
         self.fold_idx = fold_idx
         self.run = run
         self.log_prefix = ""
+
+    def train_dataloader(self):
+        return self.get_train_loader(self.batch_size)
 
     def training_step(self, batch, batch_idx):
         *model_input, topic_idxs, content_idxs = batch
@@ -63,11 +68,12 @@ class LitBienc(pl.LightningModule):
         loss = self.loss_fn(scores, mask)
 
         # Log
-        self.run[f"{self.log_prefix}loss"].log(loss.item(), step=self.global_step)
-        lr, momentum = get_learning_rate_momentum(self.optimizers().optimizer)
-        self.run[f"{self.log_prefix}lr"].log(lr, step=self.global_step)
-        if momentum:
-            self.run[f"{self.log_prefix}momentum"].log(momentum, step=self.global_step)
+        if self.log_prefix != "tune-bs/":
+            self.run[f"{self.log_prefix}loss"].log(loss.item(), step=self.global_step)
+            lr, momentum = get_learning_rate_momentum(self.optimizers().optimizer)
+            self.run[f"{self.log_prefix}lr"].log(lr, step=self.global_step)
+            if momentum:
+                self.run[f"{self.log_prefix}momentum"].log(momentum, step=self.global_step)
 
         return loss
 
@@ -93,7 +99,7 @@ class LitBienc(pl.LightningModule):
         return {"acc": acc.item(), "loss": loss.item()}
 
     def validation_epoch_end(self, outputs):
-        if self.log_prefix == "tune/":
+        if self.log_prefix == "tune/" or self.log_prefix == "tune-bs/":
             return
         dct = agg_outputs(outputs)
         print(f"Evaluation in-batch accuracy: {dct['acc']:.5}")
@@ -102,7 +108,7 @@ class LitBienc(pl.LightningModule):
         self.run["val/loss"].log(dct['loss'], step=self.global_step)
 
     def on_train_epoch_end(self):
-        if self.folds == "no" or self.log_prefix == "tune/":
+        if self.folds == "no" or self.log_prefix == "tune/" or self.log_prefix == "tune-bs/":
             return
         print(f"Running inference-mode evaluation for epoch {self.current_epoch}...")
         optim, cross_df = wrap_evaluate_inference(self.bienc, self.device, CFG.batch_size,

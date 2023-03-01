@@ -69,8 +69,9 @@ def main():
         train_dset = BiencDataset(train_corr_df["topic_id"], train_corr_df["content_ids"],
                                   train_corr_df["language"],
                                   topic2text, content2text, CFG.TOPIC_NUM_TOKENS, CFG.CONTENT_NUM_TOKENS, train_t2i, c2i)
-        train_loader = DataLoader(train_dset, num_workers=CFG.NUM_WORKERS,
-                                  batch_sampler=SameLanguageSampler(train_dset, CFG.batch_size))
+        def get_train_loader(batch_size):
+            return DataLoader(train_dset, num_workers=CFG.NUM_WORKERS,
+                              batch_sampler=SameLanguageSampler(train_dset, batch_size))
 
         if CFG.folds != "no":
             val_topics = set(topics_in_corr[idx] for idx in val_idxs)
@@ -98,9 +99,9 @@ def main():
         run["fold_idx"] = fold_idx
         run["part"] = "bienc"
 
-        lit_model = LitBienc(model, loss_fn,
+        lit_model = LitBienc(model, loss_fn, get_train_loader,
                              topic2text, content2text, c2i, t2lang, c2lang,
-                             CFG.max_lr, CFG.weight_decay,
+                             CFG.max_lr, CFG.weight_decay, CFG.batch_size,
                              cross_output_dir, experiment_id,
                              CFG.folds, fold_idx, val_corr_df if CFG.folds != "no" else None,
                              run)
@@ -109,12 +110,18 @@ def main():
                              precision=16 if CFG.use_amp else 32,
                              logger=False,
                              enable_checkpointing=False,
-                             auto_lr_find=True)
+                             auto_lr_find=CFG.tune_lr, auto_scale_batch_size=CFG.tune_bs)
+        if CFG.tune_bs:
+            lit_model.log_prefix = "tune-bs/"
+            trainer.tune(model=lit_model, scale_batch_size_kwargs={"mode": "binsearch"})
+            lit_model.log_prefix = ""
+            run["tuned_bs"] = lit_model.batch_size
         if CFG.tune_lr:
             lit_model.log_prefix = "tune/"
-            trainer.tune(model=lit_model, train_dataloaders=train_loader)
+            trainer.tune(model=lit_model)
             lit_model.log_prefix = ""
-        trainer.fit(model=lit_model, train_dataloaders=train_loader, val_dataloaders=val_loader)
+            run["tuned_lr"] = lit_model.learning_rate
+        trainer.fit(model=lit_model, val_dataloaders=val_loader)
 
         # Save artifacts
         (output_dir / f"{run_id}" / "bienc").mkdir(parents=True, exist_ok=True)
@@ -198,6 +205,8 @@ if __name__ == "__main__":
         CFG.NUM_WORKERS = args.num_workers
     if args.num_neighbors is not None:
         CFG.NUM_NEIGHBORS = args.num_neighbors
+
+    assert not (CFG.tune_lr and CFG.tune_bs), "Can't tune both at the same time without breaking logging."
 
     seed_everything(CFG.TRAINING_SEED)
     tokenizer.init_tokenizer()
