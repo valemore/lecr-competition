@@ -52,12 +52,17 @@ class LitBienc(pl.LightningModule):
         self.folds = folds
         self.fold_idx = fold_idx
         self.run = run
-        self.log_prefix = ""
+
+        if not (CFG.tune_bs or CFG. tune_lr):
+            self.automatic_optimization = False
+            self.training_step = self.training_step_manual
+        else:
+            self.training_step = self.training_step_automatic
 
     def train_dataloader(self):
         return self.get_train_loader(self.batch_size)
 
-    def training_step(self, batch, batch_idx):
+    def training_step_automatic(self, batch, batch_idx):
         *model_input, topic_idxs, content_idxs = batch
 
         scores = self.bienc(*model_input)
@@ -68,12 +73,11 @@ class LitBienc(pl.LightningModule):
         loss = self.loss_fn(scores, mask)
 
         # Log
-        if self.log_prefix != "tune-bs/":
-            self.run[f"{self.log_prefix}loss"].log(loss.item(), step=self.global_step)
-            lr, momentum = get_learning_rate_momentum(self.optimizers().optimizer)
-            self.run[f"{self.log_prefix}lr"].log(lr, step=self.global_step)
-            if momentum:
-                self.run[f"{self.log_prefix}momentum"].log(momentum, step=self.global_step)
+        self.run["loss"].log(loss.item(), step=self.global_step)
+        lr, momentum = get_learning_rate_momentum(self.optimizers().optimizer)
+        self.run["lr"].log(lr, step=self.global_step)
+        if momentum:
+            self.run["momentum"].log(momentum, step=self.global_step)
 
         return loss
 
@@ -99,7 +103,7 @@ class LitBienc(pl.LightningModule):
         return {"acc": acc.item(), "loss": loss.item()}
 
     def validation_epoch_end(self, outputs):
-        if self.log_prefix == "tune/" or self.log_prefix == "tune-bs/":
+        if CFG.tune_lr or CFG.tune_bs:
             return
         dct = agg_outputs(outputs)
         print(f"Evaluation in-batch accuracy: {dct['acc']:.5}")
@@ -108,7 +112,7 @@ class LitBienc(pl.LightningModule):
         self.run["val/loss"].log(dct['loss'], step=self.global_step)
 
     def on_train_epoch_end(self):
-        if self.folds == "no" or self.log_prefix == "tune/" or self.log_prefix == "tune-bs/":
+        if self.folds == "no" or CFG.tune_lr or CFG.tune_bs:
             return
         print(f"Running inference-mode evaluation for epoch {self.current_epoch}...")
         optim, cross_df = wrap_evaluate_inference(self.bienc, self.device, CFG.batch_size,

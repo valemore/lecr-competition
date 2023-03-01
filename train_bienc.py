@@ -112,15 +112,13 @@ def main():
                              enable_checkpointing=False,
                              auto_lr_find=CFG.tune_lr, auto_scale_batch_size=CFG.tune_bs)
         if CFG.tune_bs:
-            lit_model.log_prefix = "tune-bs/"
             trainer.tune(model=lit_model, scale_batch_size_kwargs={"mode": "binsearch"})
-            lit_model.log_prefix = ""
             run["tuned_bs"] = lit_model.batch_size
+            return
         if CFG.tune_lr:
-            lit_model.log_prefix = "tune/"
             trainer.tune(model=lit_model)
-            lit_model.log_prefix = ""
             run["tuned_lr"] = lit_model.learning_rate
+            return
         trainer.fit(model=lit_model, val_dataloaders=val_loader)
 
         # Save artifacts
