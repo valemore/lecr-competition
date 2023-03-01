@@ -15,6 +15,7 @@ def get_num_tp_num_fp(probs, topic_ids, concatenated_content_ids, concatenated_c
     for topic_id, topic_content_ids, topic_cand_ids in zip(topic_ids, concatenated_content_ids, concatenated_cand_ids):
         gold_ids = set(topic_content_ids.split())
         cand_ids = set(topic_cand_ids.split()[:num_cands])
+        cand_ids = cand_ids - {"dummy"}
         positive_ids = sorted(list(cand_ids & gold_ids))
         negative_ids = sorted(list(cand_ids - gold_ids))
         for _ in positive_ids:
