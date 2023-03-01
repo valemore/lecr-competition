@@ -4,10 +4,9 @@ from typing import Dict, Set, List
 
 import pandas as pd
 import torch
-from transformers import AutoModel
 
-from bienc.inference import embed_and_nn, entities_inference, predict_entities, filter_languages, mistery
 from bienc.gen_cands import get_cand_df
+from bienc.inference import mistery
 from bienc.model import BiencoderModule
 from bienc.tokenizer import init_tokenizer
 from config import CFG

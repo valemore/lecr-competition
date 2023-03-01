@@ -1,6 +1,5 @@
 # Inference for the Bi-encoder
 import gc
-import math
 from typing import Dict, List, Set
 
 import cupy as cp
@@ -116,13 +115,12 @@ def filter_languages(indices, topic_ids: List[str], c2i: Dict[str, int], t2lang:
     :return: modified indices numpy array of shape (num_topics, num_neighbors)
     """
     i2c = {content_idx: content_id for content_id, content_idx in c2i.items()}
-    for i, (topic_id, dists, idxs) in enumerate(zip(topic_ids, distances, indices)):
+    for i, (topic_id, idxs) in enumerate(zip(topic_ids, indices)):
         topic_lang = t2lang[topic_id]
-        matching_lang = [(dist, idx) for dist, idx in zip(dists, idxs) if c2lang[i2c[idx]] == topic_lang]
-        if matching_lang:
-            dists, idxs = zip(*matching_lang)
-            indices[i, :len(idxs)] = np.array(idxs, dtype=float)
-            indices[i, len(idxs):] = -1
+        matching_lang_idxs = [idx for idx in idxs if c2lang[i2c[idx]] == topic_lang]
+        if matching_lang_idxs:
+            indices[i, :len(matching_lang_idxs)] = np.array(idxs, dtype=float)
+            indices[i, len(matching_lang_idxs):] = -1
         else:
             indices[i, :] = -1
 

@@ -53,34 +53,34 @@ def save_checkpoint(fname: FName, global_step: int,
     }, fname)
 
 
-def sanitize_model_name(model_name: str) -> str:
-    """Sanitize model name for including it in file name."""
-    return model_name.replace("/", "-")
+def sanitize_fname(fname: str) -> str:
+    """Sanitize string for including it in file name."""
+    return fname.replace("/", "-")
 
 
-def flatten_content_ids(corr_df: pd.DataFrame) -> List[str]:
-    """Get flat list of all content ids in the correlation DataFrame."""
-    return sorted(list(set([content_id for content_ids in corr_df["content_ids"] for content_id in content_ids.split()])))
+def flatten_content_ids(df: pd.DataFrame) -> List[str]:
+    """Get flat list of all content ids in the input DataFrame."""
+    return sorted(list(set([content_id for content_ids in df["content_ids"] for content_id in content_ids.split()])))
 
 
-def flatten_positive_negative_content_ids(corr_df: pd.DataFrame) -> List[str]:
-    """Get flat list of all positive and negative content ids in the correlation DataFrame."""
-    return sorted(list(set([content_id for content_ids in corr_df["content_ids"] for content_id in content_ids.split()] + [content_id for content_ids in corr_df["cands"] for content_id in content_ids.split()])))
+def flatten_positive_negative_content_ids(df: pd.DataFrame) -> List[str]:
+    """Get flat list of all content ids and cand ids in the input DataFrame."""
+    return sorted(list(set([content_id for content_ids in df["content_ids"] for content_id in content_ids.split()] + [content_id for content_ids in df["cands"] for content_id in content_ids.split()])))
 
 
-def get_content_id_gold(corr_df: pd.DataFrame) -> Dict[str, Set[str]]:
+def get_content_id_gold(input_df: pd.DataFrame) -> Dict[str, Set[str]]:
     """Get dictionary mapping content id to set of correct topic ids."""
     c2gold = defaultdict(set)
-    for topic_id, content_ids in zip(corr_df["topic_id"], corr_df["content_ids"]):
+    for topic_id, content_ids in zip(input_df["topic_id"], input_df["content_ids"]):
         for content_id in content_ids.split():
             c2gold[content_id].add(topic_id)
     return c2gold
 
 
-def get_topic_id_gold(corr_df: pd.DataFrame) -> Dict[str, Set[str]]:
+def get_topic_id_gold(input_df: pd.DataFrame) -> Dict[str, Set[str]]:
     """Get dictionary mapping topic id to set of correct content ids."""
     t2gold = {}
-    for topic_id, content_ids in zip(corr_df["topic_id"], corr_df["content_ids"]):
+    for topic_id, content_ids in zip(input_df["topic_id"], input_df["content_ids"]):
         t2gold[topic_id] = set()
         assert len(content_ids) > 0
         for content_id in content_ids.split():
@@ -88,9 +88,9 @@ def get_topic_id_gold(corr_df: pd.DataFrame) -> Dict[str, Set[str]]:
     return t2gold
 
 
-def get_t2lang_c2lang(corr_df: pd.DataFrame, content_df: pd.DataFrame) -> Tuple[Dict[str, str], Dict[str, str]]:
+def get_t2lang_c2lang(input_df: pd.DataFrame, content_df: pd.DataFrame) -> Tuple[Dict[str, str], Dict[str, str]]:
     t2lang = {}
-    for topic_id, language in zip(corr_df["topic_id"], corr_df["language"]):
+    for topic_id, language in zip(input_df["topic_id"], input_df["language"]):
         t2lang[topic_id] = language
     c2lang = {}
     for content_id, language in zip(content_df["id"], content_df["language"]):
@@ -109,21 +109,14 @@ def is_ordered(data_ids: List[str]) -> bool:
     return True
 
 
-def are_entity_ids_aligned(entity_ids: List[str], e2i: Dict[str, int]) -> bool:
-    """Verifies whether ENTITY_IDS and E2I represent same order of entities."""
-    if len(entity_ids) != len(e2i):
+def are_content_ids_aligned(content_ids: List[str], c2i: Dict[str, int]) -> bool:
+    """Verifies whether CONTENT_IDS and C2I represent the same content ids."""
+    if len(content_ids) != len(c2i):
         return False
-    for entity_idx, entity_id in enumerate(entity_ids):
-        if e2i[entity_id] != entity_idx:
+    for entity_idx, entity_id in enumerate(content_ids):
+        if c2i[entity_id] != entity_idx:
             return False
     return True
-
-
-def safe_div(num, den):
-    """Returns 0.0 if den is zero. Used for precision computation."""
-    if den == 0.0:
-        return 0.0
-    return float(num) / float(den)
 
 
 def safe_div_np(num, den):

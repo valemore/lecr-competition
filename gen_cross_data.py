@@ -15,6 +15,7 @@ from utils import get_topic_id_gold
 
 
 if __name__ == "__main__":
+    raise Exception("Obsolete")
     device = torch.device("cuda")
 
     parser = ArgumentParser()

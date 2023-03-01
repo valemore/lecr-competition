@@ -1,7 +1,7 @@
 # Biencoder tokenizer
 from typing import Dict, List
 
-from transformers import PreTrainedTokenizer, AutoTokenizer
+from transformers import AutoTokenizer
 from config import CFG
 
 tokenizer = None

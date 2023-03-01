@@ -11,7 +11,7 @@ class CrossEncoder(nn.Module):
         super().__init__()
         if save_dir:
             config = AutoConfig.from_pretrained(save_dir)
-            self.encoder =  AutoModel.from_config(config)
+            self.encoder = AutoModel.from_config(config)
         else:
             self.encoder = AutoModel.from_pretrained(CFG.CROSS_MODEL_NAME)
         self.dropout = nn.Dropout(dropout)

@@ -1,4 +1,4 @@
-from typing import Iterable, Dict, Union
+from typing import Iterable, Dict
 
 import torch
 from torch.utils.data import Dataset

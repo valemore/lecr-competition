@@ -1,6 +1,6 @@
 from typing import Union
 
-from torch.nn import BCELoss, CrossEntropyLoss
+from torch.nn import CrossEntropyLoss
 
 from bienc.losses import BidirectionalMarginLoss, UnidirectionalMarginLoss
 

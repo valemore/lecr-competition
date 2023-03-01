@@ -21,7 +21,7 @@ from data.content import get_content2text
 from data.topics import get_topic2text
 from bienc.trainer import LitBienc
 from ignorewarnings import IGNORE_LIST
-from utils import flatten_content_ids, sanitize_model_name, get_t2lang_c2lang, seed_everything, get_dfs, \
+from utils import flatten_content_ids, sanitize_fname, get_t2lang_c2lang, seed_everything, get_dfs, \
     get_content_ids_c2i
 
 for warning_msg in IGNORE_LIST:
@@ -178,7 +178,7 @@ if __name__ == "__main__":
     CFG.tune_lr = args.tune_lr
     CFG.tune_bs = args.tune_bs
     CFG.scheduler = args.scheduler
-    CFG.experiment_name = sanitize_model_name(args.experiment_name)
+    CFG.experiment_name = sanitize_fname(args.experiment_name)
     CFG.folds = args.folds
     CFG.num_folds = args.num_folds
     CFG.output_dir = args.output_dir

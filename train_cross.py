@@ -1,15 +1,11 @@
-import random
-import warnings
 from argparse import ArgumentParser
 from datetime import datetime
 from pathlib import Path
 
 import neptune.new as neptune
 import numpy as np
-import pandas as pd
 import torch
 import torch.nn as nn
-from neptune.common.deprecation import NeptuneDeprecationWarning
 from neptune.new import Run
 from sklearn.model_selection import KFold
 from torch.cuda.amp import GradScaler
@@ -26,7 +22,7 @@ from cross.metrics import get_cross_f2, log_fscores, get_positive_class_ratio
 from cross.model import CrossEncoder
 from data.content import get_content2text
 from data.topics import get_topic2text
-from utils import get_learning_rate_momentum, flatten_positive_negative_content_ids, sanitize_model_name, \
+from utils import get_learning_rate_momentum, flatten_positive_negative_content_ids, sanitize_fname, \
     seed_everything, save_checkpoint, get_dfs
 
 
@@ -212,7 +208,7 @@ if __name__ == "__main__":
     CFG.weight_decay = args.weight_decay
     CFG.num_epochs = args.num_epochs
     CFG.use_amp = not args.use_fp
-    CFG.experiment_name = sanitize_model_name(args.experiment_name)
+    CFG.experiment_name = sanitize_fname(args.experiment_name)
     CFG.cross_corr_fname = args.df
     CFG.cross_dropout = args.cross_dropout
     CFG.cross_num_cands = args.cross_num_cands
