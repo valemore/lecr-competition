@@ -39,7 +39,6 @@ class CrossDataset(Dataset):
         for topic_id, cat_gold_ids, cat_cand_ids, in tqdm(zip(topic_ids, topic_gold_ids, topic_cand_ids)):
             gold_ids = set(cat_gold_ids.split())
             cand_ids = set(cat_cand_ids.split()[:num_cands])
-            cand_ids = cand_ids - {"dummy"}
             if is_val:
                 positive_ids = sorted(list(cand_ids & gold_ids))
             else:
@@ -87,8 +86,6 @@ class CrossInferenceDataset(Dataset):
             cand_ids = cat_cand_ids.split()
             assert len(set(cand_ids)) == len(cand_ids)
             for content_id in cand_ids:
-                if content_id == "dummy":
-                    continue
                 self.topic_ids.append(topic_id)
                 self.content_ids.append(content_id)
 

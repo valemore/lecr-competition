@@ -10,6 +10,7 @@ import numpy as np
 import pandas as pd
 import torch
 
+from config import CFG
 from typehints import FName, StateDict
 
 
@@ -134,7 +135,12 @@ def safe_div_np(num, den):
     return out
 
 
-def get_dfs(data_dir: FName, submission=False):
+def get_dfs(data_dir: FName, mode: str):
+    assert mode in ("bienc", "cross", "submit")
+
+    def fix_legacy_cands(cat_cand_ids: str):
+        return " ".join([cand_id for cand_id in cat_cand_ids.split() if cand_id != "dummy"])
+
     data_dir = Path(data_dir)
     topics_df = pd.read_csv(data_dir / "topics.csv", keep_default_na=False)
     topics_df["title"] = topics_df["title"].str.strip()
@@ -143,12 +149,19 @@ def get_dfs(data_dir: FName, submission=False):
     content_df["title"] = content_df["title"].str.strip()
     content_df["description"] = content_df["description"].str.strip()
     content_df["text"] = content_df["text"].str.strip()
-    if submission:
+
+    if mode == "submit":
         input_df = pd.read_csv(data_dir / "sample_submission.csv", keep_default_na=False)
         input_df = input_df.sort_values("topic_id").reset_index(drop=True)
-    else:
+        input_df = input_df.merge(topics_df.loc[:, ["id", "language"]], left_on="topic_id", right_on="id", how="left")
+    elif mode == "bienc":
         input_df = pd.read_csv(data_dir / "correlations.csv", keep_default_na=False)
-    input_df = input_df.merge(topics_df.loc[:, ["id", "language"]], left_on="topic_id", right_on="id", how="left")
+        input_df = input_df.merge(topics_df.loc[:, ["id", "language"]], left_on="topic_id", right_on="id", how="left")
+    else:
+        input_df = pd.read_csv(CFG.cross_corr_fname, keep_default_na=False)
+        # Compatibility with old generated cross dfs
+        input_df["cands"] = [fix_legacy_cands(cands) for cands in input_df["cands"]]
+
     return topics_df, content_df, input_df
 
 

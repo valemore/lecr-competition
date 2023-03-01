@@ -33,7 +33,7 @@ def main():
     output_dir = Path(CFG.output_dir)
     cross_output_dir = Path(CFG.cross_output_dir)
 
-    topics_df, content_df, corr_df = get_dfs(CFG.DATA_DIR)
+    topics_df, content_df, corr_df = get_dfs(CFG.DATA_DIR, "bienc")
 
     if CFG.tiny:
         corr_df = corr_df.sample(1000).reset_index(drop=True)

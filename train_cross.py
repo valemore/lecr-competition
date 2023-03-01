@@ -27,7 +27,7 @@ from cross.model import CrossEncoder
 from data.content import get_content2text
 from data.topics import get_topic2text
 from utils import get_learning_rate_momentum, flatten_positive_negative_content_ids, sanitize_model_name, \
-    seed_everything, save_checkpoint
+    seed_everything, save_checkpoint, get_dfs
 
 
 def train_one_epoch(model: CrossEncoder, loss_fn: LossFunction, loader: DataLoader, device: torch.device,
@@ -91,11 +91,7 @@ def main():
     output_dir = Path(CFG.output_dir)
     checkpoint_dir = Path(CFG.checkpoint_dir)
 
-    content_df = pd.read_csv(CFG.DATA_DIR / "content.csv")
-    corr_df = pd.read_csv(CFG.cross_corr_fname, keep_default_na=False)
-    topics_df = pd.read_csv(CFG.DATA_DIR / "topics.csv")
-
-    # corr_df["cands"] = [" ".join(x.split()[:10]) for x in corr_df["cands"]]
+    topics_df, content_df, corr_df = get_dfs(CFG.DATA_DIR, "cross")
 
     if CFG.tiny:
         corr_df = corr_df.sample(10).reset_index(drop=True)

@@ -75,7 +75,7 @@ def main(classifier_thresh: float,
     device = torch.device("cuda")
     init_tokenizer(tokenizer_dir)
 
-    topics_df, content_df, input_df = get_dfs(data_dir, submission=True)
+    topics_df, content_df, input_df = get_dfs(data_dir, "submit")
     topic_ids = sorted(input_df["topic_id"])
     content_ids, c2i = get_content_ids_c2i(content_df)
     topic2text = get_topic2text(topics_df)
