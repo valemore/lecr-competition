@@ -115,7 +115,7 @@ class LitBienc(pl.LightningModule):
         if CFG.scheduler == "plateau":
             scheduler = ReduceLROnPlateau(optimizer, mode="max", patience=2)
         elif CFG.scheduler == "cosine":
-            scheduler = CosineAnnealingWarmRestarts(optimizer, T_0=CFG.num_epochs * len(self.get_train_loader))
+            scheduler = CosineAnnealingWarmRestarts(optimizer, T_0=CFG.num_epochs * len(self.get_train_loader(self.batch_size)))
         else:
             assert CFG.scheduler == "none"
             return optimizer
@@ -161,7 +161,6 @@ class LitBienc(pl.LightningModule):
         if CFG.scheduler == "plateau":
             sched = self.lr_schedulers()
             sched.step(avg_precision)
-
 
         if self.current_epoch == CFG.num_epochs - 1:
             (self.cross_output_dir / f"{self.experiment_id}").mkdir(parents=True, exist_ok=True)
