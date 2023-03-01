@@ -19,6 +19,7 @@ from config import CFG, to_config_dct
 from data.content import get_content2text
 from data.topics import get_topic2text
 from bienc.trainer import LitBienc
+from lit_logger import LitLogger
 from utils import flatten_content_ids, sanitize_model_name, get_t2lang_c2lang, seed_everything
 
 
@@ -104,7 +105,9 @@ def main():
                              logger=False,
                              enable_checkpointing=False,
                              auto_lr_find=True)
+        trainer.lit_logger = LitLogger(run, "tune")
         trainer.tune(model=lit_model, train_dataloaders=train_loader)
+        trainer.lit_logger = LitLogger(run, "")
         trainer.fit(model=lit_model, train_dataloaders=train_loader, val_dataloaders=val_loader)
 
         # Save artifacts
