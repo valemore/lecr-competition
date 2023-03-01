@@ -152,6 +152,7 @@ if __name__ == "__main__":
     parser.add_argument("--use_fp", action="store_true")
     parser.add_argument("--tune_lr", action="store_true")
     parser.add_argument("--tune_bs", action="store_true")
+    parser.add_argument("--scheduler", type=str, choices=["none", "cosine", "plateau"], default="none")
     parser.add_argument("--experiment_name", type=str, required=True)
     parser.add_argument("--folds", type=str, choices=["first", "all", "no"], default="first")
     parser.add_argument("--num_folds", type=int, default=5)
@@ -179,6 +180,7 @@ if __name__ == "__main__":
     CFG.use_amp = not args.use_fp
     CFG.tune_lr = args.tune_lr
     CFG.tune_bs = args.tune_bs
+    CFG.scheduler = args.scheduler
     CFG.experiment_name = sanitize_model_name(args.experiment_name)
     CFG.folds = args.folds
     CFG.num_folds = args.num_folds

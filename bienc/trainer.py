@@ -7,6 +7,7 @@ import pandas as pd
 import torch
 from neptune.new import Run
 from torch.optim import Optimizer, AdamW
+from torch.optim.lr_scheduler import ReduceLROnPlateau, CosineAnnealingWarmRestarts
 
 from bienc.gen_cross import gen_cross_df
 from bienc.inference import embed_and_nn, entities_inference, filter_languages, predict_entities
@@ -14,7 +15,6 @@ from bienc.metrics import get_bienc_thresh_metrics, get_avg_precision_threshs, l
     get_bienc_cands_metrics, get_average_precision_cands, BIENC_STANDALONE_THRESHS
 from bienc.model import BiencoderModule, Biencoder
 from config import CFG
-from metrics import get_fscore
 from utils import get_learning_rate_momentum, are_entity_ids_aligned, get_topic_id_gold
 
 
@@ -81,9 +81,45 @@ class LitBienc(pl.LightningModule):
 
         return loss
 
+    def training_step_manual(self, batch, batch_idx):
+        opt = self.optimizers()
+        opt.zero_grad()
+
+        *model_input, topic_idxs, content_idxs = batch
+        scores = self.bienc(*model_input)
+        mask = torch.full_like(scores, False, dtype=torch.bool)
+        mask[topic_idxs.unsqueeze(-1) == topic_idxs.unsqueeze(0)] = True
+        mask[content_idxs.unsqueeze(-1) == content_idxs.unsqueeze(0)] = True
+        mask.fill_diagonal_(False)
+        loss = self.loss_fn(scores, mask)
+
+        self.manual_backward(loss)
+        opt.step()
+
+        # Log
+        self.run["loss"].log(loss.item(), step=self.global_step)
+        lr, momentum = get_learning_rate_momentum(self.optimizers().optimizer)
+        self.run["lr"].log(lr, step=self.global_step)
+        if momentum:
+            self.run["momentum"].log(momentum, step=self.global_step)
+
+        # Scheduler
+        if CFG.scheduler == "cosine":
+            sched = self.lr_schedulers()
+            sched.step()
+
+        return loss
+
     def configure_optimizers(self):
         optimizer = torch.optim.AdamW(self.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay)
-        return optimizer
+        if CFG.scheduler == "plateau":
+            scheduler = ReduceLROnPlateau(optimizer, mode="max", patience=2)
+        elif CFG.scheduler == "cosine":
+            scheduler = CosineAnnealingWarmRestarts(optimizer, T_0=CFG.num_epochs * len(self.get_train_loader))
+        else:
+            assert CFG.scheduler == "none"
+            return optimizer
+        return [optimizer], [scheduler]
 
     def validation_step(self, batch, batch_idx):
         *model_input, topic_idxs, content_idxs = batch
@@ -115,12 +151,18 @@ class LitBienc(pl.LightningModule):
         if self.folds == "no" or CFG.tune_lr or CFG.tune_bs:
             return
         print(f"Running inference-mode evaluation for epoch {self.current_epoch}...")
-        optim, cross_df = wrap_evaluate_inference(self.bienc, self.device, CFG.batch_size,
-                                                  self.val_corr_df, self.topic2text, self.content2text, self.c2i,
-                                                  self.optimizers().optimizer,
-                                                  CFG.FILTER_LANG, self.t2lang, self.c2lang,
-                                                  self.current_epoch == CFG.num_epochs - 1,
-                                                  self.global_step, self.run)
+        optim, cross_df, avg_precision = wrap_evaluate_inference(self.bienc, self.device, CFG.batch_size,
+                                                                 self.val_corr_df, self.topic2text, self.content2text, self.c2i,
+                                                                 self.optimizers().optimizer,
+                                                                 CFG.FILTER_LANG, self.t2lang, self.c2lang,
+                                                                 self.current_epoch == CFG.num_epochs - 1,
+                                                                 self.global_step, self.run)
+
+        if CFG.scheduler == "plateau":
+            sched = self.lr_schedulers()
+            sched.step(avg_precision)
+
+
         if self.current_epoch == CFG.num_epochs - 1:
             (self.cross_output_dir / f"{self.experiment_id}").mkdir(parents=True, exist_ok=True)
             cross_df_fname = self.cross_output_dir / f"{self.experiment_id}" / f"fold-{self.fold_idx}.csv"
@@ -132,7 +174,7 @@ def evaluate_inference(encoder: BiencoderModule, device: torch.device, batch_siz
                        topic2text: Dict[str, str], content2text: Dict[str, str], e2i: Dict[str, int],
                        filter_lang: bool, t2lang: Dict[str, str], c2lang: Dict[str, str],
                        gen_cross: bool,
-                       global_step: int, run: Run) -> Union[None, pd.DataFrame]:
+                       global_step: int, run: Run) -> Tuple[Union[None, pd.DataFrame], float]:
     """Evaluates inference mode."""
     # Make sure entity idxs align
     entity_ids = sorted(list(content2text.keys()))
@@ -154,16 +196,6 @@ def evaluate_inference(encoder: BiencoderModule, device: torch.device, batch_siz
     # Metrics
     t2gold = get_topic_id_gold(corr_df)
 
-    # Thresh metrics
-    precision_dct, recall_dct, micro_prec_dct, pcr_dct = get_bienc_thresh_metrics(distances, indices, data_ids, e2i, t2gold)
-    avg_precision = get_avg_precision_threshs(distances, indices, data_ids, e2i, t2gold)
-    print(f"Mean average precision (thresh) @ {CFG.NUM_NEIGHBORS}: {avg_precision:.5}")
-    run["val/avg_precision"].log(avg_precision, step=global_step)
-    log_dct(precision_dct, "val/precision", global_step, run)
-    log_dct(recall_dct, "val/recall", global_step, run)
-    log_dct(micro_prec_dct, "val/micro_precision", global_step, run)
-    log_dct(pcr_dct, "val/pcr", global_step, run)
-
     # Cands metrics
     get_log_mir_metrics(indices, data_ids, e2i, t2gold, global_step, run)
     precision_dct, recall_dct, micro_prec_dct, pcr_dct = get_bienc_cands_metrics(indices, data_ids, e2i, t2gold, 100)
@@ -175,28 +207,12 @@ def evaluate_inference(encoder: BiencoderModule, device: torch.device, batch_siz
     log_dct(micro_prec_dct, "cands/micro_precision", global_step, run)
     log_dct(pcr_dct, "cands/pcr", global_step, run)
 
-    # Thresholds
-    best_thresh = None
-    best_fscore = -1.0
-    thresh2score = {}
-    for thresh in BIENC_STANDALONE_THRESHS:
-        t2preds = predict_entities(data_ids, distances, indices, thresh, e2i)
-        fscore = get_fscore(t2gold, t2preds)
-        thresh2score[thresh] = fscore
-        if fscore > best_fscore:
-            best_fscore = fscore
-            best_thresh = thresh
-        print(f"validation f2 using threshold {thresh}: {fscore:.5}")
-        run[f"val/F2@{thresh}"].log(fscore, step=global_step)
-    print(f"Best threshold: {best_thresh}")
-    print(f"Best F2 score: {best_fscore}")
-    run[f"val/best_thresh"].log(best_thresh, step=global_step)
-    run[f"val/best_F2"].log(best_fscore, step=global_step)
-
     # Generate cross df
     if gen_cross:
         cross_df = gen_cross_df(distances, indices, corr_df, e2i)
-        return cross_df
+    else:
+        cross_df = None
+    return cross_df, avg_precision
 
 
 def wrap_evaluate_inference(model: Biencoder, device: torch.device, batch_size: int, corr_df: pd.DataFrame,
@@ -204,13 +220,13 @@ def wrap_evaluate_inference(model: Biencoder, device: torch.device, batch_size: 
                             optim: Optimizer,
                             filter_lang: bool, t2lang: Dict[str, str], c2lang: Dict[str, str],
                             gen_cross: bool,
-                            global_step: int, run: Run) -> Tuple[Optimizer, Union[None, pd.DataFrame]]:
+                            global_step: int, run: Run) -> Tuple[Optimizer, Union[None, pd.DataFrame], float]:
     optimizer_state_dict = optim.state_dict()
-    cross_df = evaluate_inference(model.topic_encoder, device, batch_size,
-                                  corr_df, topic2text, content2text, e2i,
-                                  filter_lang, t2lang, c2lang,
-                                  gen_cross,
-                                  global_step, run)
+    cross_df, avg_precision = evaluate_inference(model.topic_encoder, device, batch_size,
+                                                 corr_df, topic2text, content2text, e2i,
+                                                 filter_lang, t2lang, c2lang,
+                                                 gen_cross,
+                                                 global_step, run)
     optim = AdamW(model.parameters(), lr=CFG.max_lr, weight_decay=CFG.weight_decay)
     optim.load_state_dict(optimizer_state_dict)
-    return optim, cross_df
+    return optim, cross_df, avg_precision

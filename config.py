@@ -54,4 +54,5 @@ class CFG:
     cross_dropout = None
     cross_num_cands = None
     cross_corr_fname = None
+    scheduler = "none"
 
