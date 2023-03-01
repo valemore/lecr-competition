@@ -111,10 +111,13 @@ def is_ordered(data_ids: List[str]) -> bool:
 
 def are_content_ids_aligned(content_ids: List[str], c2i: Dict[str, int]) -> bool:
     """Verifies whether CONTENT_IDS and C2I represent the same content ids."""
-    if len(content_ids) != len(c2i):
+    check = c2i.copy()
+    if "dummy" in check:
+        check.pop("dummy")
+    if len(content_ids) != len(check):
         return False
     for entity_idx, entity_id in enumerate(content_ids):
-        if c2i[entity_id] != entity_idx:
+        if check[entity_id] != entity_idx:
             return False
     return True
 
