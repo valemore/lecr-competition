@@ -6,7 +6,7 @@ import pandas as pd
 import torch
 from transformers import AutoModel
 
-from bienc.inference import embed_and_nn, entities_inference, predict_entities, get_cand_df
+from bienc.inference import embed_and_nn, entities_inference, predict_entities, get_cand_df, filter_languages
 from bienc.model import BiencoderModule
 from bienc.tokenizer import init_tokenizer
 from config import CFG
@@ -60,11 +60,18 @@ def standalone_bienc_main(thresh: float, data_dir: FName, tokenizer_dir: FName, 
     return submission_df
 
 
-def bienc_main(topic_ids: List[str], content_ids: List[str], topic2text: Dict[str, str], content2text: Dict[str, str],
+def bienc_main(topic_ids: List[str], content_ids: List[str],
+               topic2text: Dict[str, str], content2text: Dict[str, str], c2i: Dict[str, int],
+               filter_lang: bool, t2lang: Dict[str, str], c2lang: Dict[str, str],
                bienc_dir: FName, batch_size: int, device: torch.device):
     encoder = get_bienc(bienc_dir, device)
     nn_model = embed_and_nn(encoder, content_ids, content2text, CFG.NUM_NEIGHBORS, batch_size, device)
     distances, indices = entities_inference(topic_ids, encoder, nn_model, topic2text, device, batch_size)
+    # Filter languages
+    if filter_lang:
+        c2i = c2i.copy()
+        c2i["dummy"] = -1
+        distances, indices = filter_languages(distances, indices, topic_ids, c2i, t2lang, c2lang)
     return distances, indices
 
 
@@ -91,6 +98,7 @@ def get_data(data_dir: FName):
 
 def main(classifier_thresh: float,
          data_dir: FName, tokenizer_dir: FName, bienc_dir: FName, cross_dir: FName,
+         filter_lang: bool, t2lang: Dict[str, str], c2lang: Dict[str, str],
          bienc_batch_size: int, cross_batch_size: int):
     data_dir = Path(data_dir)
     device = torch.device("cuda")
@@ -98,7 +106,9 @@ def main(classifier_thresh: float,
 
     content_df, topics_df, topic_ids, content_ids, c2i, topic2text, content2text = get_data(data_dir)
 
-    distances, indices = bienc_main(topic_ids, content_ids, topic2text, content2text,
+    distances, indices = bienc_main(topic_ids, content_ids,
+                                    topic2text, content2text, c2i,
+                                    filter_lang, t2lang, c2lang,
                                     bienc_dir, bienc_batch_size, device)
     cand_df = get_cand_df(topic_ids, distances, indices, c2i)
     del distances, indices

@@ -86,6 +86,7 @@ class CrossInferenceDataset(Dataset):
         for topic_id, cat_cand_ids, in tqdm(zip(topic_ids, topic_cand_ids)):
             cand_ids = cat_cand_ids.split()
             assert len(set(cand_ids)) == len(cand_ids)
+            cand_ids = cand_ids - {"dummy"}
             for content_id in cand_ids:
                 self.topic_ids.append(topic_id)
                 self.content_ids.append(content_id)
