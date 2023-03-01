@@ -16,6 +16,7 @@ from cross.model import CrossEncoder
 from data.content import get_content2text
 from data.topics import get_topic2text
 from typehints import FName
+from utils import get_t2lang_c2lang
 
 
 def get_test_topic_ids(fname: FName) -> List[str]:
@@ -98,13 +99,15 @@ def get_data(data_dir: FName):
 
 def main(classifier_thresh: float,
          data_dir: FName, tokenizer_dir: FName, bienc_dir: FName, cross_dir: FName,
-         filter_lang: bool, t2lang: Dict[str, str], c2lang: Dict[str, str],
+         filter_lang: bool,
          bienc_batch_size: int, cross_batch_size: int):
     data_dir = Path(data_dir)
     device = torch.device("cuda")
     init_tokenizer(tokenizer_dir)
 
     content_df, topics_df, topic_ids, content_ids, c2i, topic2text, content2text = get_data(data_dir)
+    corr_df = pd.DataFrame({"topic_id": topic_ids}).merge(topics_df.loc[:, ["id", "language"]], left_on="topic_id", right_on="id", how="left")
+    t2lang, c2lang = get_t2lang_c2lang(corr_df, content_df)
 
     distances, indices = bienc_main(topic_ids, content_ids,
                                     topic2text, content2text, c2i,
