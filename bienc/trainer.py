@@ -10,9 +10,8 @@ from torch.optim import Optimizer, AdamW
 from torch.optim.lr_scheduler import ReduceLROnPlateau, CosineAnnealingWarmRestarts
 
 from bienc.gen_cross import gen_cross_df
-from bienc.inference import embed_and_nn, entities_inference, filter_languages, predict_entities
-from bienc.metrics import get_bienc_thresh_metrics, get_avg_precision_threshs, log_dct, get_log_mir_metrics, \
-    get_bienc_cands_metrics, get_average_precision_cands, BIENC_STANDALONE_THRESHS
+from bienc.inference import mistery
+from bienc.metrics import log_dct, get_log_mir_metrics, get_bienc_cands_metrics, get_average_precision_cands
 from bienc.model import BiencoderModule, Biencoder
 from config import CFG
 from utils import get_learning_rate_momentum, are_entity_ids_aligned, get_topic_id_gold
@@ -171,35 +170,27 @@ class LitBienc(pl.LightningModule):
 
 
 def evaluate_inference(encoder: BiencoderModule, device: torch.device, batch_size: int, corr_df: pd.DataFrame,
-                       topic2text: Dict[str, str], content2text: Dict[str, str], e2i: Dict[str, int],
+                       topic2text: Dict[str, str], content2text: Dict[str, str], c2i: Dict[str, int],
                        filter_lang: bool, t2lang: Dict[str, str], c2lang: Dict[str, str],
                        gen_cross: bool,
                        global_step: int, run: Run) -> Tuple[Union[None, pd.DataFrame], float]:
     """Evaluates inference mode."""
     # Make sure entity idxs align
-    entity_ids = sorted(list(content2text.keys()))
-    assert are_entity_ids_aligned(entity_ids, e2i)
+    content_ids = sorted(list(content2text.keys()))
+    assert are_entity_ids_aligned(content_ids, c2i)
 
-    # Prepare nearest neighbors data structure for entities
-    nn_model = embed_and_nn(encoder, entity_ids, content2text, CFG.NUM_NEIGHBORS, batch_size, device)
-
-    # Get nearest neighbor distances and indices
-    data_ids = sorted(list(set(corr_df["topic_id"])))
-    distances, indices = entities_inference(data_ids, encoder, nn_model, topic2text, device, batch_size)
-
-    # Filter languages
-    if filter_lang:
-        e2i = e2i.copy()
-        e2i["dummy"] = -1
-        distances, indices = filter_languages(distances, indices, data_ids, e2i, t2lang, c2lang)
+    topic_ids = sorted(list(set(corr_df["topic_id"])))
+    distances, indices = mistery(encoder, topic_ids, content_ids, topic2text, content2text,
+                                 filter_lang, t2lang, c2lang, c2i,
+                                 batch_size, device)
 
     # Metrics
     t2gold = get_topic_id_gold(corr_df)
 
     # Cands metrics
-    get_log_mir_metrics(indices, data_ids, e2i, t2gold, global_step, run)
-    precision_dct, recall_dct, micro_prec_dct, pcr_dct = get_bienc_cands_metrics(indices, data_ids, e2i, t2gold, 100)
-    avg_precision = get_average_precision_cands(indices, data_ids, e2i, t2gold)
+    get_log_mir_metrics(indices, content_ids, c2i, t2gold, global_step, run)
+    precision_dct, recall_dct, micro_prec_dct, pcr_dct = get_bienc_cands_metrics(indices, content_ids, c2i, t2gold, 100)
+    avg_precision = get_average_precision_cands(indices, content_ids, c2i, t2gold)
     print(f"Mean average precision (cands) @ {CFG.NUM_NEIGHBORS}: {avg_precision:.5}")
     run["cands/avg_precision"].log(avg_precision, step=global_step)
     log_dct(precision_dct, "cands/precision", global_step, run)
@@ -209,7 +200,7 @@ def evaluate_inference(encoder: BiencoderModule, device: torch.device, batch_siz
 
     # Generate cross df
     if gen_cross:
-        cross_df = gen_cross_df(distances, indices, corr_df, e2i)
+        cross_df = gen_cross_df(indices, corr_df, c2i)
     else:
         cross_df = None
     return cross_df, avg_precision

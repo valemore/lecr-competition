@@ -153,3 +153,23 @@ def get_cand_df(topic_ids: List[str], distances, indices, e2i: Dict[str, int]) -
         #     cands = [i2e[idxs[0]]]
         all_topic_cand_ids.append(" ".join(cands))
     return pd.DataFrame({"topic_id": topic_ids, "cands": all_topic_cand_ids})
+
+
+def mistery(encoder: BiencoderModule,
+            topic_ids: List[str], content_ids: List[str],
+            topic2text: Dict[str, str], content2text: Dict[str, str],
+            filter_lang: bool, t2lang: Dict[str, str], c2lang: Dict[str, str], c2i: Dict[str, int],
+            batch_size: int, device: torch.device):
+    # Prepare nearest neighbors data structure for entities
+    nn_model = embed_and_nn(encoder, content_ids, content2text, CFG.NUM_NEIGHBORS, batch_size, device)
+
+    # Get nearest neighbor distances and indices
+    distances, indices = entities_inference(topic_ids, encoder, nn_model, topic2text, device, batch_size)
+
+    # Filter languages
+    if filter_lang:
+        c2i = c2i.copy()
+        c2i["dummy"] = -1
+        distances, indices = filter_languages(distances, indices, topic_ids, c2i, t2lang, c2lang)
+
+    return distances, indices

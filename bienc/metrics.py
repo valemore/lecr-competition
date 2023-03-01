@@ -12,20 +12,20 @@ BIENC_EVAL_THRESHS = [round(x, 2) for x in np.arange(0.2, 0.62, 0.02)]
 BIENC_STANDALONE_THRESHS = [round(x, 2) for x in np.arange(0.1, 0.52, 0.02)]
 
 
-def get_i2e_tp_num_gold(indices, topic_ids: List[str], e2i: Dict[str, int], t2gold: Dict[str, Set[str]]):
-    i2e = {entity_idx: entity_id for entity_id, entity_idx in e2i.items()}
+def get_i2c_tp_num_gold(indices, topic_ids: List[str], c2i: Dict[str, int], t2gold: Dict[str, Set[str]]):
+    i2c = {content_idx: entity_id for entity_id, content_idx in c2i.items()}
     tp = np.empty_like(indices, dtype=int) # mask indicating whether prediction is a true positive
     num_gold = np.empty(len(topic_ids), dtype=int) # how many content ids are in gold?
     for i, (idxs, topic_id) in enumerate(zip(indices, topic_ids)):
         gold = t2gold[topic_id]
-        tp[i, :] = np.array([int(i2e[idx] in gold) for idx in idxs], dtype=int)
+        tp[i, :] = np.array([int(i2c[idx] in gold) for idx in idxs], dtype=int)
         num_gold[i] = len(gold)
-    return i2e, tp, num_gold
+    return i2c, tp, num_gold
 
 
 def get_bienc_thresh_metrics(distances, indices,
                              topic_ids: List[str], e2i: Dict[str, int], t2gold: Dict[str, Set[str]]) -> Tuple[MetricDict, MetricDict, MetricDict, MetricDict]:
-    i2e, tp, num_gold = get_i2e_tp_num_gold(indices, topic_ids, e2i, t2gold)
+    i2e, tp, num_gold = get_i2c_tp_num_gold(indices, topic_ids, e2i, t2gold)
     total_gold = np.sum(num_gold)
 
     precision_dct = {thresh: 0.0 for thresh in BIENC_EVAL_THRESHS}
@@ -55,7 +55,7 @@ def get_bienc_thresh_metrics(distances, indices,
 
 
 def get_avg_precision_threshs(distances, indices, topic_ids: List[str], e2i: Dict[str, int], t2gold: Dict[str, Set[str]]) -> float:
-    i2e, tp, num_gold = get_i2e_tp_num_gold(indices, topic_ids, e2i, t2gold)
+    i2e, tp, num_gold = get_i2c_tp_num_gold(indices, topic_ids, e2i, t2gold)
 
     mesh = [round(x, 2) for x in np.arange(-1.0, 1.0 + 0.01, 0.01)]
     mesh.reverse()
@@ -78,8 +78,8 @@ def log_dct(dct: Dict[int, float], label: str, global_step: int, run: Run):
         run[f"{label}@{k}"].log(v, step=global_step)
 
 
-def get_bienc_cands_metrics(indices, topic_ids: List[str], e2i: Dict[str, int], t2gold: Dict[str, Set[str]], num_cands: int) -> Tuple[MetricDict, MetricDict, MetricDict, MetricDict]:
-    i2e, tp, num_gold = get_i2e_tp_num_gold(indices, topic_ids, e2i, t2gold)
+def get_bienc_cands_metrics(indices, topic_ids: List[str], c2i: Dict[str, int], t2gold: Dict[str, Set[str]], num_cands: int) -> Tuple[MetricDict, MetricDict, MetricDict, MetricDict]:
+    i2e, tp, num_gold = get_i2c_tp_num_gold(indices, topic_ids, c2i, t2gold)
 
     mesh = list(range(1, num_cands + 1))
     precision_dct = {num_cands: 0.0 for num_cands in mesh}
@@ -105,8 +105,8 @@ def get_bienc_cands_metrics(indices, topic_ids: List[str], e2i: Dict[str, int], 
     return precision_dct, recall_dct, micro_prec_dct, pcr_dct
 
 
-def get_average_precision_cands(indices, topic_ids: List[str], e2i: Dict[str, int], t2gold: Dict[str, Set[str]]) -> float:
-    i2e, tp, num_gold = get_i2e_tp_num_gold(indices, topic_ids, e2i, t2gold)
+def get_average_precision_cands(indices, topic_ids: List[str], c2i: Dict[str, int], t2gold: Dict[str, Set[str]]) -> float:
+    i2e, tp, num_gold = get_i2c_tp_num_gold(indices, topic_ids, c2i, t2gold)
 
     acc_tp = np.zeros(len(topic_ids), dtype=float) # accumulating true positives for all topic ids
 
@@ -122,22 +122,22 @@ def get_average_precision_cands(indices, topic_ids: List[str], e2i: Dict[str, in
     return avg_precision
 
 
-def get_min_max_ranks(indices, data_ids: List[str], data2gold: Dict[str, Set[str]], e2i: Dict[str, int]):
+def get_min_max_ranks(indices, topic_ids: List[str], t2gold: Dict[str, Set[str]], c2i: Dict[str, int]):
     """
     Get ranks of gold labels in INDICES gathered from predictions and Nearest Neighbor search.
     Returns both the the minimum and maximum rank of gold entities among predicted indices.
     :param indices: numpy array of shape (num_data_ids, num_neighbors) containing predicted entity indices
-    :param data_ids: data ids in the same order as indices
-    :param data2gold: dict mapping data id to set of topic ids
-    :param e2i: dict mapping entity id to topic index
+    :param topic_ids: topic ids in the same order as indices
+    :param t2gold: dict mapping topic id to set of topic ids
+    :param c2i: dict mapping content id to topic index
     :return: numpy array of shape (num_data_ids,) with lowest rank of gold label, -1 if not found
     """
     min_ranks = np.full(indices.shape[0], -1, dtype=float)
     max_ranks = np.full(indices.shape[0], -1, dtype=float)
     i = 0
-    for idxs, data_id in zip(indices, data_ids):
-        gold = data2gold[data_id]
-        gold_idxs = np.array([e2i[g] for g in gold])
+    for idxs, data_id in zip(indices, topic_ids):
+        gold = t2gold[data_id]
+        gold_idxs = np.array([c2i[g] for g in gold])
         found = np.argwhere(idxs.reshape(-1, 1) == gold_idxs.reshape(1, -1))[:, 0]
         if len(found) > 0:
             min_ranks[i] = min(found)
@@ -156,10 +156,10 @@ def get_mean_inverse_rank(ranks) -> float:
 
 
 def get_log_mir_metrics(indices,
-                        data_ids: List[str], e2i: Dict[str, int], t2gold: Dict[str, Set[str]],
+                        topic_ids: List[str], c2i: Dict[str, int], t2gold: Dict[str, Set[str]],
                         global_step: int, run: Run) -> None:
     """Compare with gold, compute and log rank metrics."""
-    min_ranks, max_ranks = get_min_max_ranks(indices, data_ids, t2gold, e2i)
+    min_ranks, max_ranks = get_min_max_ranks(indices, topic_ids, t2gold, c2i)
     min_mir = get_mean_inverse_rank(min_ranks)
     max_mir = get_mean_inverse_rank(max_ranks)
 
