@@ -146,4 +146,4 @@ def do_nn(encoder: BiencoderModule,
     if filter_lang:
         indices = filter_languages(indices, topic_ids, c2i, t2lang, c2lang)
 
-    return indices, c2i
+    return indices
