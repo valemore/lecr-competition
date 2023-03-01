@@ -19,7 +19,7 @@ from ceevee import get_topics_in_corr
 from config import CFG, to_config_dct
 from data.content import get_content2text
 from data.topics import get_topic2text
-from bienc.trainer import LitBienc, GLB
+from bienc.trainer import LitBienc
 from ignorewarnings import IGNORE_LIST
 from utils import flatten_content_ids, sanitize_model_name, get_t2lang_c2lang, seed_everything
 
@@ -110,9 +110,10 @@ def main():
                              logger=False,
                              enable_checkpointing=False,
                              auto_lr_find=True)
-        GLB.log_prefix = "tune/"
-        trainer.tune(model=lit_model, train_dataloaders=train_loader)
-        GLB.log_prefix = ""
+        if CFG.tune_lr:
+            lit_model.log_prefix = "tune/"
+            trainer.tune(model=lit_model, train_dataloaders=train_loader)
+            lit_model.log_prefix = ""
         trainer.fit(model=lit_model, train_dataloaders=train_loader, val_dataloaders=val_loader)
 
         # Save artifacts
@@ -144,6 +145,8 @@ if __name__ == "__main__":
     parser.add_argument("--margin", type=float, default=0.0)
     parser.add_argument("--num_epochs", type=int, default=5)
     parser.add_argument("--use_fp", action="store_true")
+    parser.add_argument("--tune_lr", action="store_true")
+    parser.add_argument("--tune_bs", action="store_true")
     parser.add_argument("--experiment_name", type=str, required=True)
     parser.add_argument("--folds", type=str, choices=["first", "all", "no"], default="first")
     parser.add_argument("--num_folds", type=int, default=5)
@@ -169,6 +172,8 @@ if __name__ == "__main__":
     CFG.margin = args.margin
     CFG.num_epochs = args.num_epochs
     CFG.use_amp = not args.use_fp
+    CFG.tune_lr = args.tune_lr
+    CFG.tune_bs = args.tune_bs
     CFG.experiment_name = sanitize_model_name(args.experiment_name)
     CFG.folds = args.folds
     CFG.num_folds = args.num_folds

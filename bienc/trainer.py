@@ -27,9 +27,6 @@ def agg_outputs(outputs):
         dct[k] = v / len(outputs)
     return dct
 
-class GLB:
-    log_prefix = ""
-
 
 class LitBienc(pl.LightningModule):
     def __init__(self, bienc, loss_fn,
@@ -53,6 +50,7 @@ class LitBienc(pl.LightningModule):
         self.folds = folds
         self.fold_idx = fold_idx
         self.run = run
+        self.log_prefix = ""
 
     def training_step(self, batch, batch_idx):
         *model_input, topic_idxs, content_idxs = batch
@@ -65,11 +63,11 @@ class LitBienc(pl.LightningModule):
         loss = self.loss_fn(scores, mask)
 
         # Log
-        self.run[f"{GLB.log_prefix}loss"].log(loss.item(), step=self.global_step)
+        self.run[f"{self.log_prefix}loss"].log(loss.item(), step=self.global_step)
         lr, momentum = get_learning_rate_momentum(self.optimizers().optimizer)
-        self.run[f"{GLB.log_prefix}lr"].log(lr, step=self.global_step)
+        self.run[f"{self.log_prefix}lr"].log(lr, step=self.global_step)
         if momentum:
-            self.run[f"{GLB.log_prefix}momentum"].log(momentum, step=self.global_step)
+            self.run[f"{self.log_prefix}momentum"].log(momentum, step=self.global_step)
 
         return loss
 
@@ -95,7 +93,7 @@ class LitBienc(pl.LightningModule):
         return {"acc": acc.item(), "loss": loss.item()}
 
     def validation_epoch_end(self, outputs):
-        if GLB.log_prefix == "tune/":
+        if self.log_prefix == "tune/":
             return
         dct = agg_outputs(outputs)
         print(f"Evaluation in-batch accuracy: {dct['acc']:.5}")
@@ -104,7 +102,7 @@ class LitBienc(pl.LightningModule):
         self.run["val/loss"].log(dct['loss'], step=self.global_step)
 
     def on_train_epoch_end(self):
-        if self.folds == "no" or GLB.log_prefix == "tune/":
+        if self.folds == "no" or self.log_prefix == "tune/":
             return
         print(f"Running inference-mode evaluation for epoch {self.current_epoch}...")
         optim, cross_df = wrap_evaluate_inference(self.bienc, self.device, CFG.batch_size,

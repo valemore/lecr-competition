@@ -43,6 +43,8 @@ class CFG:
     margin = None
     num_epochs = None
     use_amp = None
+    tune_lr = None
+    tune_bs = None
     experiment_name = None
     folds = None
     num_folds = None
