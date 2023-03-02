@@ -1,3 +1,4 @@
+import sys
 import warnings
 from argparse import ArgumentParser
 from datetime import datetime
@@ -92,6 +93,7 @@ def main():
         run = neptune.init_run(
             project="vmorelli/kolibri",
             source_files=["**/*.py", "*.py"])
+        run["cmd"] = " ".join(sys.argv)
         run_id = f'{experiment_id}_{run["sys/id"].fetch()}'
         run["run_id"] = run_id
         run["experiment_id"] = experiment_id

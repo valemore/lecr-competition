@@ -1,3 +1,4 @@
+import sys
 from argparse import ArgumentParser
 from datetime import datetime
 from pathlib import Path
@@ -82,6 +83,7 @@ def main():
         run = neptune.init_run(
             project="vmorelli/kolibri",
             source_files=["**/*.py", "*.py"])
+        run["cmd"] = " ".join(sys.argv)
         run_id = f'{CFG.experiment_name}_{run["sys/id"].fetch()}'
         run["run_id"] = run_id
         run["parameters"] = to_config_dct(CFG)
@@ -94,7 +96,7 @@ def main():
                              val_corr_df,
                              CFG.max_lr, CFG.weight_decay, CFG.batch_size,
                              run)
-        trainer = pl.Trainer(accelerator="gpu", devices=1,
+        trainer = pl.Trainer(accelerator="gpu", devices=CFG.gpus, strategy="dp" if CFG.gpus > 1 else None,
                              max_epochs=CFG.num_epochs,
                              precision=16 if CFG.use_amp else 32,
                              num_sanity_val_steps=0,
@@ -129,6 +131,7 @@ if __name__ == "__main__":
     parser.add_argument("--small", action="store_true")
     parser.add_argument("--medium", action="store_true")
     parser.add_argument("--batch_size", type=int, default=64)
+    parser.add_argument("--gpus", type=int, default=1)
     parser.add_argument("--max_lr", type=float, default=3e-5)
     parser.add_argument("--weight_decay", type=float, default=0.0)
     parser.add_argument("--num_epochs", type=int, default=3)
@@ -159,8 +162,10 @@ if __name__ == "__main__":
     CFG.medium = args.medium
     CFG.small = args.small
     CFG.batch_size = args.batch_size
+    CFG.gpus = args.gpus
     CFG.max_lr = args.max_lr
     CFG.weight_decay = args.weight_decay
+    CFG.gpus = args.gpus
     CFG.num_epochs = args.num_epochs
     CFG.use_amp = not args.use_fp
     CFG.tune_lr = args.tune_lr
