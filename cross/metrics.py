@@ -7,14 +7,14 @@ from utils import safe_div_np
 CROSS_EVAL_THRESHS = np.array([round(x, 2) for x in np.arange(-0.2, 0.2 + 0.01, 0.01)])
 
 
-def get_num_tp_num_fp(probs, topic_ids, concatenated_content_ids, concatenated_cand_ids, num_cands):
+def get_num_tp_num_fp(probs, topic_ids, concatenated_content_ids, concatenated_cand_ids):
     num_tp = np.zeros((len(topic_ids), len(CROSS_EVAL_THRESHS)), dtype=int) # Careful when used as float
     num_fp = np.zeros((len(topic_ids), len(CROSS_EVAL_THRESHS)), dtype=int) # Careful when used as float
     topic_idx = 0
     prob_idx = 0
     for topic_id, topic_content_ids, topic_cand_ids in zip(topic_ids, concatenated_content_ids, concatenated_cand_ids):
         gold_ids = set(topic_content_ids.split())
-        cand_ids = set(topic_cand_ids.split()[:num_cands])
+        cand_ids = set(topic_cand_ids.split())
         positive_ids = sorted(list(cand_ids & gold_ids))
         negative_ids = sorted(list(cand_ids - gold_ids))
         for _ in positive_ids:
@@ -28,7 +28,7 @@ def get_num_tp_num_fp(probs, topic_ids, concatenated_content_ids, concatenated_c
 
 
 def get_cross_f2(probs, corr_df):
-    num_tp, num_fp = get_num_tp_num_fp(probs, corr_df["topic_id"], corr_df["content_ids"], corr_df["cands"], CFG.cross_num_cands)
+    num_tp, num_fp = get_num_tp_num_fp(probs, corr_df["topic_id"], corr_df["content_ids"], corr_df["cands"])
     num_tp, num_fp = num_tp.astype(float), num_fp.astype(float)
     num_gold = np.array([len(x.split()) for x in corr_df["content_ids"]], dtype=float)
 
@@ -54,12 +54,12 @@ def log_fscores(fscores, step, run):
     run["cross/best_f2"].log(best_f2, step=step)
 
 
-def get_positive_class_ratio(corr_df, num_cands):
+def get_positive_class_ratio(corr_df):
     acc_num_examples = 0
     acc_num_positives = 0
     for cat_gold_ids, cat_cand_ids in zip(corr_df["content_ids"], corr_df["cands"]):
         gold_ids = set(cat_gold_ids.split())
-        cand_ids = set(cat_cand_ids.split()[:num_cands])
+        cand_ids = set(cat_cand_ids.split())
         negative_ids = cand_ids - gold_ids
         acc_num_examples += len(gold_ids) + len(negative_ids)
         acc_num_positives += len(gold_ids)

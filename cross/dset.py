@@ -15,7 +15,6 @@ class CrossDataset(Dataset):
                  topic_cand_ids: Iterable[str],
                  topic2text: Dict[str, str], content2text: Dict[str, str],
                  num_tokens: int,
-                 num_cands: int,
                  is_val: bool):
         """
         Training dataset for the bi-encoder embedding content and topic texts into the same space.
@@ -25,7 +24,6 @@ class CrossDataset(Dataset):
         :param topic2text: dictionary mapping topic to its text representation
         :param content2text: dictionary mapping content to its text representation
         :param num_tokens: how many tokens to use for joint representation
-        :param num_cands: how many candidates to consider
         :param is_val: whether this is a validation dataset. in that case, only include positives if they are candidates
         """
         self.topic_ids = []
@@ -34,11 +32,10 @@ class CrossDataset(Dataset):
         self.topic2text = topic2text
         self.content2text = content2text
         self.num_tokens = num_tokens
-        self.num_cands = num_cands
 
         for topic_id, cat_gold_ids, cat_cand_ids, in tqdm(zip(topic_ids, topic_gold_ids, topic_cand_ids)):
             gold_ids = set(cat_gold_ids.split())
-            cand_ids = set(cat_cand_ids.split()[:num_cands])
+            cand_ids = set(cat_cand_ids.split())
             if is_val:
                 positive_ids = sorted(list(cand_ids & gold_ids))
             else:

@@ -137,6 +137,9 @@ def get_dfs(data_dir: FName, mode: str):
     def fix_legacy_cands(cat_cand_ids: str):
         return " ".join([cand_id for cand_id in cat_cand_ids.split() if cand_id != "dummy"])
 
+    def truncate_cands(cat_cand_ids: str, max_num_cands):
+        return " ".join([cand_id for cand_id in cat_cand_ids.split()][:CFG.cross_num_cands])
+
     data_dir = Path(data_dir)
     topics_df = pd.read_csv(data_dir / "topics.csv", keep_default_na=False)
     topics_df["title"] = topics_df["title"].str.strip()
@@ -157,6 +160,7 @@ def get_dfs(data_dir: FName, mode: str):
         input_df = pd.read_csv(CFG.cross_corr_fname, keep_default_na=False)
         # Compatibility with old generated cross dfs
         input_df["cands"] = [fix_legacy_cands(cands) for cands in input_df["cands"]]
+        input_df["cands"] = [truncate_cands(cands, CFG.cross_num_cands) for cands in input_df["cands"]]
 
     return topics_df, content_df, input_df
 

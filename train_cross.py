@@ -37,7 +37,7 @@ def main():
     elif CFG.medium:
         corr_df = corr_df.sample(10000).reset_index(drop=True)
 
-    class_ratio = get_positive_class_ratio(corr_df, CFG.cross_num_cands)
+    class_ratio = get_positive_class_ratio(corr_df)
     print(f"Positive class ratio: {class_ratio}")
 
     topic2text = get_topic2text(topics_df)
@@ -59,7 +59,7 @@ def main():
         train_corr_df = corr_df.loc[corr_df["topic_id"].isin(train_topics), :].reset_index(drop=True)
 
         train_dset = CrossDataset(train_corr_df["topic_id"], train_corr_df["content_ids"], train_corr_df["cands"],
-                                  topic2text, content2text, CFG.CROSS_NUM_TOKENS, num_cands=CFG.cross_num_cands, is_val=False)
+                                  topic2text, content2text, CFG.CROSS_NUM_TOKENS, is_val=False)
 
         def get_train_loader(batch_size):
             return DataLoader(train_dset, batch_size=batch_size, num_workers=CFG.NUM_WORKERS, shuffle=True)
@@ -68,7 +68,7 @@ def main():
             val_topics = set(nonsource_topics[idx] for idx in val_idxs)
             val_corr_df = corr_df.loc[corr_df["topic_id"].isin(val_topics), :].reset_index(drop=True)
             val_dset = CrossDataset(val_corr_df["topic_id"], val_corr_df["content_ids"], val_corr_df["cands"],
-                                    topic2text, content2text, CFG.CROSS_NUM_TOKENS, CFG.cross_num_cands, is_val=True)
+                                    topic2text, content2text, CFG.CROSS_NUM_TOKENS, is_val=True)
             val_loader = DataLoader(val_dset, batch_size=CFG.batch_size, num_workers=CFG.NUM_WORKERS, shuffle=False)
         else:
             val_corr_df = None
