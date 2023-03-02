@@ -1,9 +1,9 @@
 import numpy as np
 
-from config import CFG
 from metrics import np_fscore
+from utils import safe_div_np
 
-CROSS_EVAL_THRESHS = np.array([round(x, 2) for x in np.arange(-0.2, 0.2 + 0.01, 0.01)])
+CROSS_EVAL_THRESHS = np.array([round(x, 2) for x in np.arange(-0.3, 0.3 + 0.01, 0.01)])
 
 
 def get_num_tp_num_fp(probs, topic_ids, concatenated_content_ids, concatenated_cand_ids):
