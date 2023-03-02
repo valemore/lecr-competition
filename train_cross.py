@@ -126,6 +126,9 @@ if __name__ == "__main__":
     parser.add_argument("--weight_decay", type=float, default=0.0)
     parser.add_argument("--num_epochs", type=int, default=3)
     parser.add_argument("--use_fp", action="store_true")
+    parser.add_argument("--tune_lr", action="store_true")
+    parser.add_argument("--tune_bs", action="store_true")
+    parser.add_argument("--scheduler", type=str, choices=["none", "cosine", "plateau"], default="none")
     parser.add_argument("--experiment_name", type=str, required=True)
     parser.add_argument("--df", type=str, required=True)
     parser.add_argument("--cross_dropout", default=0.1, type=float)
@@ -151,6 +154,9 @@ if __name__ == "__main__":
     CFG.weight_decay = args.weight_decay
     CFG.num_epochs = args.num_epochs
     CFG.use_amp = not args.use_fp
+    CFG.tune_lr = args.tune_lr
+    CFG.tune_bs = args.tune_bs
+    CFG.scheduler = args.scheduler
     CFG.experiment_name = sanitize_fname(args.experiment_name)
     CFG.cross_corr_fname = args.df
     CFG.cross_dropout = args.cross_dropout
@@ -173,6 +179,8 @@ if __name__ == "__main__":
         CFG.CROSS_NUM_TOKENS = args.cross_num_tokens
     if args.num_workers is not None:
         CFG.NUM_WORKERS = args.num_workers
+
+    assert not (CFG.tune_lr and CFG.tune_bs), "Can't tune both at the same time without breaking logging."
 
     seed_everything(CFG.TRAINING_SEED)
     tokenizer.init_tokenizer()
