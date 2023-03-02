@@ -98,7 +98,7 @@ class LitCross(pl.LightningModule):
 
     def on_validation_start(self):
         self.val_idx = 0
-        self.val_probs = np.empty((self.val_corr_df.shape[0]))
+        self.val_probs = np.empty(len(self.trainer.val_dataloaders[0].dataset))
 
     def validation_epoch_end(self, outputs):
         if CFG.tune_lr or CFG.tune_bs:
