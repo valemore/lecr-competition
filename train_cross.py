@@ -97,6 +97,7 @@ def main():
         trainer = pl.Trainer(accelerator="gpu", devices=1,
                              max_epochs=CFG.num_epochs,
                              precision=16 if CFG.use_amp else 32,
+                             num_sanity_val_steps=0,
                              logger=False,
                              enable_checkpointing=False,
                              auto_lr_find=CFG.tune_lr, auto_scale_batch_size=CFG.tune_bs)

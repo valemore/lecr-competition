@@ -8,6 +8,20 @@ from cross.metrics import get_cross_f2, log_fscores
 from utils import get_learning_rate_momentum
 
 
+def agg_outputs(outputs, dset_len):
+    loss = 0.0
+    all_probs = torch.empty(dset_len)
+    i = 0
+    for out in outputs:
+        loss += out["loss"]
+        probs = out["probs"]
+        bs = probs.shape[0]
+        all_probs[i:(i+bs)] = probs
+        i += bs
+    loss = loss / len(outputs)
+    return loss, all_probs.numpy()
+
+
 class LitCross(pl.LightningModule):
     def __init__(self, model, loss_fn, get_train_loader,
                  val_corr_df,
@@ -89,30 +103,18 @@ class LitCross(pl.LightningModule):
         loss = self.loss_fn(logits, labels)
         probs = logits.softmax(dim=1)[:, 1]
 
-        i = self.val_idx
-        bs = logits.shape[0]
-        self.val_probs[i:(i+bs)] = probs.cpu().numpy().reshape(-1)
-        self.val_idx += bs
-
-        return loss.item()
-
-    def on_validation_start(self):
-        self.val_idx = 0
-        self.val_probs = np.empty(len(self.trainer.val_dataloaders[0].dataset))
+        return {"loss": loss.item(), "probs":  probs.cpu().reshape(-1)}
 
     def validation_epoch_end(self, outputs):
         if CFG.tune_lr or CFG.tune_bs:
             return
-        loss = sum(outputs) / len(outputs)
+        loss, probs = agg_outputs(outputs, len(self.trainer.val_dataloaders[0].dataset))
 
         print(f"Evaluation loss: {loss:.5}")
         self.run["cross/loss"].log(loss, step=self.global_step)
 
-        fscores = get_cross_f2(self.val_probs, self.val_corr_df)
-        del self.val_probs
-        del self.val_idx
+        fscores = get_cross_f2(probs, self.val_corr_df)
         log_fscores(fscores, self.global_step, self.run)
-        del fscores
 
     # TODO
     # def training_epoch_end(self, outputs):
