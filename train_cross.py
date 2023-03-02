@@ -24,6 +24,7 @@ from utils import flatten_positive_negative_content_ids, sanitize_fname, \
 
 def main():
     device = torch.device("cuda")
+    CFG.NUM_WORKERS = 0
     CFG.gpus = torch.cuda.device_count()
 
     topics_df, content_df, corr_df = get_dfs(CFG.DATA_DIR, "cross")
@@ -51,8 +52,9 @@ def main():
 
 
     model = CrossEncoder(dropout=CFG.cross_dropout)
-    if torch.cuda.device_count() > 1:
+    if CFG.gpus > 1:
         model = nn.DataParallel(model).to(device)
+        print(f"Using {CFG.gpus} GPUS!")
     else:
         model = model.to(device)
 
