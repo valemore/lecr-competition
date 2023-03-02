@@ -1,6 +1,9 @@
+import sys
 from argparse import ArgumentParser
+from datetime import datetime
 from pathlib import Path
 
+import neptune.new as neptune
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -14,7 +17,7 @@ from tqdm import tqdm
 
 import bienc.tokenizer as tokenizer
 from ceevee import get_source_nonsource_topics
-from config import CFG
+from config import CFG, to_config_dct
 from cross.dset import CrossDataset
 from cross.metrics import get_positive_class_ratio, get_cross_f2, log_fscores
 from cross.model import CrossEncoder
@@ -45,11 +48,11 @@ def train_one_epoch(model: CrossEncoder, loader: DataLoader, device: torch.devic
             scheduler.step()
 
         # Log
-        # run["loss"].log(loss.item(), step=step)
-        # lr, momentum = get_learning_rate_momentum(optim)
-        # run["lr"].log(lr, step=step)
-        # if momentum:
-        #     run["momentum"].log(momentum, step=step)
+        run["loss"].log(loss.item(), step=step)
+        lr, momentum = get_learning_rate_momentum(optim)
+        run["lr"].log(lr, step=step)
+        if momentum:
+            run["momentum"].log(momentum, step=step)
 
         step += 1
     return step
@@ -77,14 +80,15 @@ def evaluate(model: CrossEncoder, loader: DataLoader, device: torch.device,
     loss = loss_cumsum / num_batches
 
     print(f"Evaluation loss: {loss:.5}")
-    # run["cross/loss"].log(loss, step=global_step)
+    run["cross/loss"].log(loss, step=global_step)
     return all_probs.numpy(), loss
 
 
 def main():
     device = torch.device("cuda")
-    CFG.NUM_WORKERS = 0
     CFG.gpus = torch.cuda.device_count()
+    if CFG.gpus > 1:
+        CFG.NUM_WORKERS = 6 * CFG.gpus
     output_dir = Path(CFG.output_dir)
     checkpoint_dir = Path(CFG.checkpoint_dir)
 
@@ -134,7 +138,6 @@ def main():
         model = CrossEncoder(dropout=CFG.cross_dropout)
         if CFG.gpus > 1:
             model = nn.DataParallel(model).to(device)
-            print(f"Using {CFG.gpus} GPUS!")
         else:
             model = model.to(device)
 
@@ -148,34 +151,33 @@ def main():
             scheduler = None
 
         # Prepare logging and saving
-        # run_start = datetime.utcnow().strftime("%m%d-%H%M%S")
-        # run = neptune.init_run(
-        #     project="vmorelli/kolibri",
-        #     source_files=["**/*.py", "*.py"])
-        # run["cmd"] = " ".join(sys.argv)
-        run_id = "foo"
-        # run_id = f'{CFG.experiment_name}_{run["sys/id"].fetch()}'
-        # run["run_id"] = run_id
-        # run["parameters"] = to_config_dct(CFG)
-        # run["fold_idx"] = fold_idx
-        # run["part"] = "cross"
-        # run["run_start"] = run_start
-        # run["positive_class_ratio"] = class_ratio
+        run_start = datetime.utcnow().strftime("%m%d-%H%M%S")
+        run = neptune.init_run(
+            project="vmorelli/kolibri",
+            source_files=["**/*.py", "*.py"])
+        run["cmd"] = " ".join(sys.argv)
+        run_id = f'{CFG.experiment_name}_{run["sys/id"].fetch()}'
+        run["run_id"] = run_id
+        run["parameters"] = to_config_dct(CFG)
+        run["fold_idx"] = fold_idx
+        run["part"] = "cross"
+        run["run_start"] = run_start
+        run["positive_class_ratio"] = class_ratio
 
         # Train
         global_step = 0
         for epoch in tqdm(range(CFG.num_epochs)):
             print(f"Training epoch {epoch}...")
             global_step = train_one_epoch(model, train_loader, device, optim, scheduler, CFG.use_amp, scaler,
-                                          global_step, None)
+                                          global_step, run)
 
             if CFG.folds != "no":
                 # Loss and in-batch accuracy for training validation set
                 print(f"Evaluating epoch {epoch}...")
-                all_probs, loss = evaluate(model, val_loader, device, global_step, None)
+                all_probs, loss = evaluate(model, val_loader, device, global_step, run)
                 fscores = get_cross_f2(all_probs, val_corr_df)
                 del all_probs
-                # log_fscores(fscores, global_step, run)
+                log_fscores(fscores, global_step, run)
                 del fscores
 
                 if CFG.scheduler == "plateau":
@@ -201,7 +203,7 @@ def main():
         # tokenizer.tokenizer.save_pretrained(output_dir / f"{run_id}" / "tokenizer")
 
         fold_idx += 1
-        # run.stop()
+        run.stop()
 
 
 if __name__ == "__main__":
