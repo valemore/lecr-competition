@@ -27,7 +27,7 @@ from utils import flatten_positive_negative_content_ids, sanitize_fname, \
     seed_everything, get_dfs, get_learning_rate_momentum, save_checkpoint
 
 
-def train_one_epoch(model: CrossEncoder, loss_fn: LossFunction, loader: DataLoader, device: torch.device,
+def train_one_epoch(model: CrossEncoder, loader: DataLoader, device: torch.device,
                     optim: Optimizer, scheduler, use_amp: bool, scaler: GradScaler, global_step: int, run: Run) -> int:
     """Train one epoch of Cross-Encoder."""
     step = global_step
@@ -58,7 +58,7 @@ def train_one_epoch(model: CrossEncoder, loss_fn: LossFunction, loader: DataLoad
     return step
 
 
-def evaluate(model: CrossEncoder, loss_fn: LossFunction, val_loader: DataLoader, device: torch.device,
+def evaluate(model: CrossEncoder, val_loader: DataLoader, device: torch.device,
              global_step: int, run: Run):
     all_probs = torch.empty(len(val_loader.dataset), dtype=torch.float)
     loss_cumsum = 0.0
@@ -85,7 +85,7 @@ def evaluate(model: CrossEncoder, loss_fn: LossFunction, val_loader: DataLoader,
 
 
 def main():
-    device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+    device = torch.device("cuda")
     CFG.gpus = torch.cuda.device_count()
     output_dir = Path(CFG.output_dir)
     checkpoint_dir = Path(CFG.checkpoint_dir)
@@ -134,11 +134,10 @@ def main():
             val_loader = DataLoader(val_dset, batch_size=CFG.batch_size, num_workers=CFG.NUM_WORKERS, shuffle=False)
 
         model = CrossEncoder(dropout=CFG.cross_dropout)
-        loss_fn = nn.CrossEntropyLoss().to(device)
         if torch.cuda.device_count() > 1:
-            model = nn.DataParallel(model).to(device)
+            train_model = nn.DataParallel(train_model).to(device)
         else:
-            model = model.to(device)
+            train_model = train_model.to(device)
 
         optim = AdamW(model.parameters(), lr=CFG.max_lr, weight_decay=CFG.weight_decay)
         scaler = GradScaler(enabled=CFG.use_amp)
@@ -167,13 +166,13 @@ def main():
         global_step = 0
         for epoch in tqdm(range(CFG.num_epochs)):
             print(f"Training epoch {epoch}...")
-            global_step = train_one_epoch(model, loss_fn, train_loader, device, optim, scheduler, CFG.use_amp, scaler,
+            global_step = train_one_epoch(model, train_loader, device, optim, scheduler, CFG.use_amp, scaler,
                                           global_step, run)
 
             if CFG.folds != "no":
                 # Loss and in-batch accuracy for training validation set
                 print(f"Evaluating epoch {epoch}...")
-                all_probs, loss = evaluate(model, loss_fn, val_loader, device, global_step, run)
+                all_probs, loss = evaluate(model, val_loader, device, global_step, run)
                 fscores = get_cross_f2(all_probs, val_corr_df)
                 del all_probs
                 log_fscores(fscores, global_step, run)
@@ -184,7 +183,7 @@ def main():
 
             # Save checkpoint
             if CFG.checkpoint:
-                if torch.cuda.device_count() > 1:
+                if CFG.gpus > 1:
                     save_checkpoint(checkpoint_dir / f"{run_id}" / f"epoch-{epoch}.pt", global_step,
                                     model.module.state_dict(), optim.state_dict(), None, scaler.state_dict())
                 else:
@@ -195,7 +194,7 @@ def main():
         out_dir = output_dir / f"{run_id}" / "cross"
         out_dir.mkdir(parents=True, exist_ok=True)
         # (output_dir / f"{run_id}" / "tokenizer").mkdir(parents=True, exist_ok=True)
-        if torch.cuda.device_count() > 1:
+        if CFG.gpus > 1:
             model.module.save(out_dir)
         else:
             model.save(out_dir)

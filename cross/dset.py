@@ -52,7 +52,7 @@ class CrossDataset(Dataset):
 
     def __getitem__(self, idx):
         enc = tokenize_cross(self.topic2text[self.topic_ids[idx]], self.content2text[self.content_ids[idx]], self.num_tokens)
-        return torch.tensor(enc["input_ids"]), torch.tensor(enc["attention_mask"]), self.labels[idx]
+        return torch.tensor(enc["input_ids"]), torch.tensor(enc["attention_mask"]), torch.tensor(self.labels[idx])
 
     def __len__(self):
         return len(self.topic_ids)
