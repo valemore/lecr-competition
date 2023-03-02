@@ -5,8 +5,10 @@ from pathlib import Path
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from neptune.new import Run
 from torch.cuda.amp import GradScaler
-from torch.optim import AdamW
+from torch.optim import AdamW, Optimizer
+from torch.optim.lr_scheduler import ReduceLROnPlateau, CosineAnnealingWarmRestarts
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
@@ -19,7 +21,38 @@ from cross.model import CrossEncoder
 from data.content import get_content2text
 from data.topics import get_topic2text
 from utils import flatten_positive_negative_content_ids, sanitize_fname, \
-    seed_everything, get_dfs
+    seed_everything, get_dfs, get_learning_rate_momentum
+
+
+def train_one_epoch(model: CrossEncoder, loader: DataLoader, device: torch.device,
+                    optim: Optimizer, scheduler, use_amp: bool, scaler: GradScaler, global_step: int, run: Run) -> int:
+    """Train one epoch of Cross-Encoder."""
+    step = global_step
+    model.train()
+    for batch in tqdm(loader):
+        batch = tuple(x.to(device) for x in batch)
+        *model_input, labels = batch
+        with torch.cuda.amp.autocast(enabled=True):
+            logits = model(*model_input)
+            loss = F.cross_entropy(logits, labels)
+
+        scaler.scale(loss).backward()
+        scaler.step(optim)
+        scaler.update()
+        optim.zero_grad()
+
+        if CFG.scheduler == "cosine":
+            scheduler.step()
+
+        # Log
+        # run["loss"].log(loss.item(), step=step)
+        # lr, momentum = get_learning_rate_momentum(optim)
+        # run["lr"].log(lr, step=step)
+        # if momentum:
+        #     run["momentum"].log(momentum, step=step)
+
+        step += 1
+    return step
 
 
 def main():
@@ -60,23 +93,36 @@ def main():
 
     optim = AdamW(model.parameters(), lr=CFG.max_lr, weight_decay=CFG.weight_decay)
     scaler = GradScaler(enabled=CFG.use_amp)
+    if CFG.scheduler == "plateau":
+            scheduler = ReduceLROnPlateau(optim, mode="max", patience=2)
+        elif CFG.scheduler == "cosine":
+            scheduler = CosineAnnealingWarmRestarts(optim, T_0=CFG.num_epochs * len(train_loader))
+        else:
+            scheduler = None
+
+    # Prepare logging and saving
+    # run_start = datetime.utcnow().strftime("%m%d-%H%M%S")
+    # run = neptune.init_run(
+    #     project="vmorelli/kolibri",
+    #     source_files=["**/*.py", "*.py"])
+    # run["cmd"] = " ".join(sys.argv)
+    # run_id = f'{CFG.experiment_name}_{run["sys/id"].fetch()}'
+    # run["run_id"] = run_id
+    # run["parameters"] = to_config_dct(CFG)
+    # run["fold_idx"] = fold_idx
+    # run["part"] = "cross"
+    # run["run_start"] = run_start
+    # run["positive_class_ratio"] = class_ratio
 
     # Train
     global_step = 0
     for epoch in tqdm(range(CFG.num_epochs)):
         print(f"Training epoch {epoch}...")
-        model.train()
-        for batch in tqdm(train_loader):
-            batch = tuple(x.to(device) for x in batch)
-            *model_input, labels = batch
-            with torch.cuda.amp.autocast(enabled=True):
-                logits = model(*model_input)
-                loss = F.cross_entropy(logits, labels)
+        global_step = train_one_epoch(model, train_loader, device, optim, scheduler, CFG.use_amp, scaler,
+                                      global_step, None)
 
-            scaler.scale(loss).backward()
-            scaler.step(optim)
-            scaler.update()
-            optim.zero_grad()
+
+
 
 
 if __name__ == "__main__":
