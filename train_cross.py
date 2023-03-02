@@ -16,7 +16,7 @@ import bienc.tokenizer as tokenizer
 from ceevee import get_source_nonsource_topics
 from config import CFG
 from cross.dset import CrossDataset
-from cross.metrics import get_positive_class_ratio
+from cross.metrics import get_positive_class_ratio, get_cross_f2, log_fscores
 from cross.model import CrossEncoder
 from data.content import get_content2text
 from data.topics import get_topic2text
@@ -32,7 +32,7 @@ def train_one_epoch(model: CrossEncoder, loader: DataLoader, device: torch.devic
     for batch in tqdm(loader):
         batch = tuple(x.to(device) for x in batch)
         *model_input, labels = batch
-        with torch.cuda.amp.autocast(enabled=True):
+        with torch.cuda.amp.autocast(enabled=use_amp):
             logits = model(*model_input)
             loss = F.cross_entropy(logits, labels)
 
@@ -53,6 +53,32 @@ def train_one_epoch(model: CrossEncoder, loader: DataLoader, device: torch.devic
 
         step += 1
     return step
+
+
+def evaluate(model: CrossEncoder, loader: DataLoader, device: torch.device,
+             global_step: int, run: Run):
+    all_probs = torch.empty(len(loader.dataset), dtype=torch.float)
+    loss_cumsum = 0.0
+    num_batches = 0
+    model.eval()
+    i = 0
+    for batch in tqdm(loader):
+        batch = tuple(x.to(device) for x in batch)
+        *model_input, labels = batch
+        with torch.no_grad():
+            logits = model(*model_input)
+        loss = F.cross_entropy(logits, labels)
+        probs = logits.softmax(dim=1)[:, 1]
+        bs = logits.shape[0]
+        probs[i:(i+bs)] = probs.cpu().reshape(-1)
+        loss_cumsum += loss.item()
+        num_batches += 1
+
+    loss = loss_cumsum / num_batches
+
+    print(f"Evaluation loss: {loss:.5}")
+    # run["cross/loss"].log(loss, step=global_step)
+    return all_probs.numpy(), loss
 
 
 def main():
@@ -78,10 +104,16 @@ def main():
 
     del topics_df, content_df
 
-    train_dset = CrossDataset(corr_df["topic_id"], corr_df["content_ids"], corr_df["cands"],
+    train_corr_df = corr_df.sample(frac=0.1)
+    train_dset = CrossDataset(train_corr_df["topic_id"], train_corr_df["content_ids"], train_corr_df["cands"],
                               topic2text, content2text, CFG.CROSS_NUM_TOKENS, is_val=False)
 
     train_loader = DataLoader(train_dset, batch_size=CFG.batch_size, num_workers=CFG.NUM_WORKERS, shuffle=True)
+
+    val_corr_df = corr_df.sample(frac=0.1)
+    val_dset = CrossDataset(val_corr_df["topic_id"], val_corr_df["content_ids"], val_corr_df["cands"],
+                                    topic2text, content2text, CFG.CROSS_NUM_TOKENS, is_val=True)
+    val_loader = DataLoader(val_dset, batch_size=CFG.batch_size, num_workers=CFG.NUM_WORKERS, shuffle=False)
 
 
     model = CrossEncoder(dropout=CFG.cross_dropout)
@@ -95,10 +127,10 @@ def main():
     scaler = GradScaler(enabled=CFG.use_amp)
     if CFG.scheduler == "plateau":
             scheduler = ReduceLROnPlateau(optim, mode="max", patience=2)
-        elif CFG.scheduler == "cosine":
-            scheduler = CosineAnnealingWarmRestarts(optim, T_0=CFG.num_epochs * len(train_loader))
-        else:
-            scheduler = None
+    elif CFG.scheduler == "cosine":
+        scheduler = CosineAnnealingWarmRestarts(optim, T_0=CFG.num_epochs * len(train_loader))
+    else:
+        scheduler = None
 
     # Prepare logging and saving
     # run_start = datetime.utcnow().strftime("%m%d-%H%M%S")
@@ -120,6 +152,18 @@ def main():
         print(f"Training epoch {epoch}...")
         global_step = train_one_epoch(model, train_loader, device, optim, scheduler, CFG.use_amp, scaler,
                                       global_step, None)
+
+        if CFG.folds != "no":
+            # Loss and in-batch accuracy for training validation set
+            print(f"Evaluating epoch {epoch}...")
+            all_probs, loss = evaluate(model, val_loader, device, global_step, run)
+            fscores = get_cross_f2(all_probs, val_corr_df)
+            del all_probs
+            # log_fscores(fscores, global_step, run)
+            del fscores
+
+            if CFG.scheduler == "plateau":
+                scheduler.step(loss)
 
 
 
