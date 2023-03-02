@@ -4,6 +4,7 @@ from torch.nn import functional as F
 
 from config import CFG
 
+# TODO: Inherit nn.Module and check if to calls in lightning work
 
 class BidirectionalMarginLoss:
     def __init__(self, device: torch.device, margin: float = 0.0):

@@ -23,6 +23,7 @@ def embed(encoder: BiencoderModule, data_loader: DataLoader, device: torch.devic
     :param data_loader: data loader of a BiencInferenceDataset over topics or contents
     :return: torch CPU tensor containing topic embeddings
     """
+    # TODO
     embs = []
     encoder.eval()
     encoder.to(device)
@@ -35,10 +36,10 @@ def embed(encoder: BiencoderModule, data_loader: DataLoader, device: torch.devic
     return embs
 
 
-def embed_data(encoder: BiencoderModule, data_ids: List[str], data2text: Dict[str, str],
+def embed_data(encoder: BiencoderModule, topic_ids: List[str], data2text: Dict[str, str],
                batch_size: int, device: torch.device):
-    assert is_ordered(data_ids)
-    dset = BiencInferenceDataset(data_ids, data2text, CFG.TOPIC_NUM_TOKENS)
+    assert is_ordered(topic_ids)
+    dset = BiencInferenceDataset(topic_ids, data2text, CFG.TOPIC_NUM_TOKENS)
     loader = DataLoader(dset, batch_size=batch_size, num_workers=CFG.NUM_WORKERS, shuffle=False)
     print("Preparing Bi-encoder inference dataset containing entity embeddings...")
     embs = embed(encoder, loader, device)
@@ -52,11 +53,11 @@ def prepare_nn(embs, num_neighbors: int):
     return nn_model
 
 
-def embed_and_nn(encoder: BiencoderModule, data_ids: List[str], data2text: Dict[str, str],
+def embed_and_nn(encoder: BiencoderModule, topic_ids: List[str], data2text: Dict[str, str],
                  num_neighbors: int,
                  batch_size: int, device: torch.device):
     """Embeds and prepares nearest neighbors data structure."""
-    embs = embed_data(encoder, data_ids, data2text, batch_size, device)
+    embs = embed_data(encoder, topic_ids, data2text, batch_size, device)
     # Rapids NN runs on GPU - shift model to CPU to save GPU memory
     encoder.to(torch.device("cpu"))
     gc.collect()
@@ -68,16 +69,6 @@ def embed_and_nn(encoder: BiencoderModule, data_ids: List[str], data2text: Dict[
     torch.cuda.empty_cache()
     encoder.to(device)
     return nn_model
-
-
-def predict_entities(topic_ids: List[str], distances, indices, thresh, e2i: Dict[str, int]) -> Dict[str, Set[str]]:
-    i2e = {entity_idx: entity_id for entity_id, entity_idx in e2i.items()}
-    t2preds = {}
-    for data_id, dists, idxs in zip(topic_ids, distances, indices):
-        t2preds[data_id] = set(i2e[idx] for idx in idxs[dists <= thresh])
-        if not t2preds[data_id]:
-            t2preds[data_id] = set([i2e[idxs[0]]])
-    return t2preds
 
 
 def entities_inference(topic_ids: List[str], encoder: BiencoderModule, nn_model: NearestNeighbors,
@@ -133,8 +124,7 @@ def do_nn(encoder: BiencoderModule,
           filter_lang: bool, t2lang: Dict[str, str], c2lang: Dict[str, str], c2i: Dict[str, int],
           batch_size: int, device: torch.device):
     """
-    Returns tuple of indices (that may contain -1 indicating non-matching language contents) and c2i dct mapping content
-    id to idx (including mapping 'dummy' to -1.
+    Returns numpy array of shape (num_topics, num_neighbors). -1 indicates non-matching language contents.
     """
     # Prepare nearest neighbors data structure for entities
     nn_model = embed_and_nn(encoder, content_ids, content2text, CFG.NUM_NEIGHBORS, batch_size, device)

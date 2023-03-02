@@ -7,7 +7,7 @@ def get_cand_df(topic_ids: List[str], indices, c2i: Dict[str, int], max_num_cand
     """
     Converts distances and indices obtained from NN search to dataframe containing candidate contents for all topics.
     :param topic_ids: all topic ids in order
-    :param indices: indices - output from NN model
+    :param indices: indices - output from NN model (-1 indicates a non-matching language for that content)
     :param c2i: dct mapping topic id to topic idx
     :param max_num_cands: maximum number of candidates to include in the dataframe
     :return: dataframe with two columns: topic ids and concatenated candidate ids

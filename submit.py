@@ -19,11 +19,6 @@ from typehints import FName
 from utils import get_t2lang_c2lang, get_dfs, get_content_ids_c2i
 
 
-def get_test_topic_ids(fname: FName) -> List[str]:
-    df = pd.read_csv(fname)
-    return sorted(list(set(df["topic_id"])))
-
-
 def get_bienc(bienc_dir: FName, device: torch.device) -> BiencoderModule:
     model = BiencoderModule(bienc_dir)
     model.to(device)
@@ -36,15 +31,6 @@ def get_cross(cross_dir: FName, device: torch.device):
     model.load(cross_dir)
     model.eval()
     return model
-
-
-def get_submission_df(t2preds: Dict[str, Set[str]]) -> pd.DataFrame:
-    def to_str(content_ids):
-        return " ".join(sorted(list(content_ids)))
-    topic_id_col = sorted(t2preds.keys())
-    content_ids_col = [to_str(t2preds[topic_id]) for topic_id in topic_id_col]
-    df = pd.DataFrame({"topic_id": topic_id_col, "content_ids": content_ids_col})
-    return df
 
 
 def bienc_main(topic_ids: List[str], content_ids: List[str],
@@ -64,6 +50,15 @@ def cross_main(classifier_thresh: float, cand_df: pd.DataFrame, topic2text, cont
     dset = CrossInferenceDataset(cand_df["topic_id"], cand_df["cands"], topic2text, content2text, CFG.CROSS_NUM_TOKENS)
     all_preds = predict(model, dset, classifier_thresh, batch_size, device)
     return all_preds
+
+
+def get_submission_df(t2preds: Dict[str, Set[str]]) -> pd.DataFrame:
+    def to_str(content_ids):
+        return " ".join(sorted(list(content_ids)))
+    topic_id_col = sorted(t2preds.keys())
+    content_ids_col = [to_str(t2preds[topic_id]) for topic_id in topic_id_col]
+    df = pd.DataFrame({"topic_id": topic_id_col, "content_ids": content_ids_col})
+    return df
 
 
 def main(classifier_thresh: float,
@@ -91,6 +86,7 @@ def main(classifier_thresh: float,
     gc.collect()
     all_preds = cross_main(classifier_thresh, cand_df, topic2text, content2text, cross_dir, cross_batch_size, device)
 
+    # TODO
     t2preds = {}
     for topic_id in topic_ids:
         t2preds[topic_id] = set()

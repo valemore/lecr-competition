@@ -6,10 +6,6 @@ from neptune.new import Run
 
 from config import CFG
 from typehints import MetricDict
-from utils import safe_div_np
-
-BIENC_EVAL_THRESHS = [round(x, 2) for x in np.arange(0.2, 0.62, 0.02)]
-BIENC_STANDALONE_THRESHS = [round(x, 2) for x in np.arange(0.1, 0.52, 0.02)]
 
 
 def get_i2c_tp_num_gold(indices, topic_ids: List[str], c2i: Dict[str, int], t2gold: Dict[str, Set[str]]):
@@ -21,56 +17,6 @@ def get_i2c_tp_num_gold(indices, topic_ids: List[str], c2i: Dict[str, int], t2go
         tp[i, :] = np.array([int(i2c[pred_idxs] in gold) for pred_idxs in pred_idxs], dtype=int)
         num_gold[i] = len(gold)
     return i2c, tp, num_gold
-
-
-def get_bienc_thresh_metrics(distances, indices,
-                             topic_ids: List[str], e2i: Dict[str, int], t2gold: Dict[str, Set[str]]) -> Tuple[MetricDict, MetricDict, MetricDict, MetricDict]:
-    i2e, tp, num_gold = get_i2c_tp_num_gold(indices, topic_ids, e2i, t2gold)
-    total_gold = np.sum(num_gold)
-
-    precision_dct = {thresh: 0.0 for thresh in BIENC_EVAL_THRESHS}
-    recall_dct = {thresh: 0.0 for thresh in BIENC_EVAL_THRESHS}
-    micro_prec_dct = {thresh: 0.0 for thresh in BIENC_EVAL_THRESHS}
-    pcr_dct = {thresh: 0.0 for thresh in BIENC_EVAL_THRESHS}
-
-    for thresh in BIENC_EVAL_THRESHS:
-        mask = distances <= thresh
-        thresh_tp = np.copy(tp)
-        thresh_tp[~mask] = 0
-        num_tp = np.sum(thresh_tp, axis=1)
-        num_preds = np.sum(mask, axis=1)
-        prec = safe_div_np(num_tp, num_preds)
-        rec = num_tp / num_gold
-        precision_dct[thresh] = np.mean(prec)
-        recall_dct[thresh] = np.mean(rec)
-
-        num_tp_all = np.sum(thresh_tp)      # total true positive over all topic ids
-        num_preds_all = np.sum(mask)        # total predictions over all topic ids
-        num_fp_all = np.sum((1 - thresh_tp) * mask, axis=None)
-        # Micro precision: Not per sample (i.e. per topic id), but looking at every topic-content pair individually
-        micro_prec_dct[thresh] = num_tp_all / num_preds_all
-        # Positive class ratio: What we expect the positive class ratio to be in gen_cross_data
-        pcr_dct[thresh] = total_gold / (num_fp_all + total_gold)
-    return precision_dct, recall_dct, micro_prec_dct, pcr_dct
-
-
-def get_avg_precision_threshs(distances, indices, topic_ids: List[str], e2i: Dict[str, int], t2gold: Dict[str, Set[str]]) -> float:
-    i2e, tp, num_gold = get_i2c_tp_num_gold(indices, topic_ids, e2i, t2gold)
-
-    mesh = [round(x, 2) for x in np.arange(-1.0, 1.0 + 0.01, 0.01)]
-    mesh.reverse()
-    precs = np.empty((len(topic_ids), len(mesh)), dtype=float)
-    recs = np.empty((len(topic_ids), len(mesh)), dtype=float)
-    for i, thresh in enumerate(mesh):
-        mask = distances > thresh
-        tp[mask] = 0
-        num_tp = np.sum(tp, axis=1)
-        num_preds = np.sum(~mask, axis=1)
-        precs[:, len(mesh) - i - 1] = safe_div_np(num_tp, num_preds)
-        recs[:, len(mesh) - i - 1] = num_tp / num_gold
-    avg_precision = precs * np.diff(np.concatenate([np.zeros((len(topic_ids), 1)), recs], axis=1), axis=1)
-    avg_precision = np.mean(np.sum(avg_precision, axis=1)).item()
-    return avg_precision
 
 
 def log_dct(dct: Dict[int, float], label: str, global_step: int, run: Run):

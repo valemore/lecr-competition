@@ -122,15 +122,6 @@ def are_content_ids_aligned(content_ids: List[str], c2i: Dict[str, int]) -> bool
     return True
 
 
-def safe_div_np(num, den):
-    """Safe division for numpy arrays. Output has same shape as inputs and is zero where denominator is zero. Used for precision computation."""
-    mask = den == 0.0
-    den[mask] = 1.0
-    out = num / den
-    out[mask] = 0.0
-    return out
-
-
 def get_dfs(data_dir: FName, mode: str):
     assert mode in ("bienc", "cross", "submit")
 
