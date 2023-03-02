@@ -2,7 +2,6 @@ import numpy as np
 
 from config import CFG
 from metrics import np_fscore
-from utils import safe_div_np
 
 CROSS_EVAL_THRESHS = np.array([round(x, 2) for x in np.arange(-0.2, 0.2 + 0.01, 0.01)])
 
