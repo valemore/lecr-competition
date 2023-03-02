@@ -1,94 +1,30 @@
-import sys
 from argparse import ArgumentParser
-from datetime import datetime
+from argparse import ArgumentParser
 from pathlib import Path
 
-import neptune.new as neptune
 import torch
 import torch.nn as nn
-from neptune.new import Run
-from sklearn.model_selection import KFold
+import torch.nn.functional as F
 from torch.cuda.amp import GradScaler
-from torch.optim import Optimizer, AdamW
-from torch.optim.lr_scheduler import ReduceLROnPlateau, CosineAnnealingWarmRestarts
+from torch.optim import AdamW
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 import bienc.tokenizer as tokenizer
-from bienc.typehints import LossFunction
 from ceevee import get_source_nonsource_topics
-from config import CFG, to_config_dct
+from config import CFG
 from cross.dset import CrossDataset
-from cross.metrics import get_positive_class_ratio, get_cross_f2, log_fscores
+from cross.metrics import get_positive_class_ratio
 from cross.model import CrossEncoder
 from data.content import get_content2text
 from data.topics import get_topic2text
 from utils import flatten_positive_negative_content_ids, sanitize_fname, \
-    seed_everything, get_dfs, get_learning_rate_momentum, save_checkpoint
-
-
-def train_one_epoch(model: CrossEncoder, loader: DataLoader, device: torch.device,
-                    optim: Optimizer, scheduler, use_amp: bool, scaler: GradScaler, global_step: int, run: Run) -> int:
-    """Train one epoch of Cross-Encoder."""
-    step = global_step
-    model.train()
-    for batch in tqdm(loader):
-        batch = tuple(x.to(device) for x in batch)
-        *model_input, labels = batch
-        with torch.cuda.amp.autocast(enabled=use_amp):
-            logits = model(*model_input)
-            loss = loss_fn(logits, labels)
-
-        scaler.scale(loss).backward()
-        scaler.step(optim)
-        scaler.update()
-        optim.zero_grad()
-
-        if CFG.scheduler == "cosine":
-            scheduler.step()
-
-        # Log
-        run["loss"].log(loss.item(), step=step)
-        lr, momentum = get_learning_rate_momentum(optim)
-        run["lr"].log(lr, step=step)
-        if momentum:
-            run["momentum"].log(momentum, step=step)
-
-        step += 1
-    return step
-
-
-def evaluate(model: CrossEncoder, val_loader: DataLoader, device: torch.device,
-             global_step: int, run: Run):
-    all_probs = torch.empty(len(val_loader.dataset), dtype=torch.float)
-    loss_cumsum = 0.0
-    num_batches = 0
-    model.eval()
-    i = 0
-    for batch in tqdm(val_loader):
-        batch = tuple(x.to(device) for x in batch)
-        *model_input, labels = batch
-        with torch.no_grad():
-            logits = model(*model_input)
-            loss = loss_fn(logits, labels)
-        probs = logits.softmax(dim=1)[:, 1]
-        bs = logits.shape[0]
-        probs[i:(i+bs)] = probs.cpu().reshape(-1)
-        loss_cumsum += loss.item()
-        num_batches += 1
-
-    loss = loss_cumsum / num_batches
-
-    print(f"Evaluation loss: {loss:.5}")
-    run["cross/loss"].log(loss, step=global_step)
-    return all_probs.numpy(), loss
+    seed_everything, get_dfs
 
 
 def main():
     device = torch.device("cuda")
     CFG.gpus = torch.cuda.device_count()
-    output_dir = Path(CFG.output_dir)
-    checkpoint_dir = Path(CFG.checkpoint_dir)
 
     topics_df, content_df, corr_df = get_dfs(CFG.DATA_DIR, "cross")
 
@@ -106,102 +42,39 @@ def main():
     topic2text = get_topic2text(topics_df)
     content2text = get_content2text(content_df)
 
-    source_topics, nonsource_topics = get_source_nonsource_topics(corr_df, topics_df)
-
     del topics_df, content_df
 
-    fold_idx = 0 if CFG.folds != "no" else -1
-    for train_idxs, val_idxs in KFold(n_splits=CFG.num_folds, shuffle=True, random_state=CFG.VAL_SPLIT_SEED).split(nonsource_topics):
-        if (CFG.folds == "first" and fold_idx > 0) or (CFG.folds == "no" and fold_idx == 0):
-            break
-        print(f"---*** Training fold {fold_idx} ***---")
-        if CFG.folds != "no":
-            train_topics = set(nonsource_topics[idx] for idx in train_idxs) | set(source_topics)
-        else:
-            train_topics = set(corr_df["topic_id"])
-        train_corr_df = corr_df.loc[corr_df["topic_id"].isin(train_topics), :].reset_index(drop=True)
+    train_dset = CrossDataset(corr_df["topic_id"], corr_df["content_ids"], corr_df["cands"],
+                              topic2text, content2text, CFG.CROSS_NUM_TOKENS, is_val=False)
 
-        train_dset = CrossDataset(train_corr_df["topic_id"], train_corr_df["content_ids"], train_corr_df["cands"],
-                                  topic2text, content2text, CFG.CROSS_NUM_TOKENS, is_val=False)
+    train_loader = DataLoader(train_dset, batch_size=CFG.batch_size, num_workers=CFG.NUM_WORKERS, shuffle=True)
 
-        train_loader = DataLoader(train_dset, batch_size=CFG.batch_size, num_workers=CFG.NUM_WORKERS, shuffle=True)
 
-        if CFG.folds != "no":
-            val_topics = set(nonsource_topics[idx] for idx in val_idxs)
-            val_corr_df = corr_df.loc[corr_df["topic_id"].isin(val_topics), :].reset_index(drop=True)
-            val_dset = CrossDataset(val_corr_df["topic_id"], val_corr_df["content_ids"], val_corr_df["cands"],
-                                    topic2text, content2text, CFG.CROSS_NUM_TOKENS, is_val=True)
-            val_loader = DataLoader(val_dset, batch_size=CFG.batch_size, num_workers=CFG.NUM_WORKERS, shuffle=False)
+    model = CrossEncoder(dropout=CFG.cross_dropout)
+    if torch.cuda.device_count() > 1:
+        model = nn.DataParallel(model).to(device)
+    else:
+        model = model.to(device)
 
-        model = CrossEncoder(dropout=CFG.cross_dropout)
-        if torch.cuda.device_count() > 1:
-            train_model = nn.DataParallel(train_model).to(device)
-        else:
-            train_model = train_model.to(device)
+    optim = AdamW(model.parameters(), lr=CFG.max_lr, weight_decay=CFG.weight_decay)
+    scaler = GradScaler(enabled=CFG.use_amp)
 
-        optim = AdamW(model.parameters(), lr=CFG.max_lr, weight_decay=CFG.weight_decay)
-        scaler = GradScaler(enabled=CFG.use_amp)
-        if CFG.scheduler == "plateau":
-            scheduler = ReduceLROnPlateau(optim, mode="max", patience=2)
-        elif CFG.scheduler == "cosine":
-            scheduler = CosineAnnealingWarmRestarts(optim, T_0=CFG.num_epochs * len(train_loader))
-        else:
-            scheduler = None
+    # Train
+    global_step = 0
+    for epoch in tqdm(range(CFG.num_epochs)):
+        print(f"Training epoch {epoch}...")
+        model.train()
+        for batch in tqdm(train_loader):
+            batch = tuple(x.to(device) for x in batch)
+            *model_input, labels = batch
+            with torch.cuda.amp.autocast(enabled=True):
+                logits = model(*model_input)
+                loss = F.cross_entropy(logits, labels)
 
-        # Prepare logging and saving
-        run_start = datetime.utcnow().strftime("%m%d-%H%M%S")
-        run = neptune.init_run(
-            project="vmorelli/kolibri",
-            source_files=["**/*.py", "*.py"])
-        run["cmd"] = " ".join(sys.argv)
-        run_id = f'{CFG.experiment_name}_{run["sys/id"].fetch()}'
-        run["run_id"] = run_id
-        run["parameters"] = to_config_dct(CFG)
-        run["fold_idx"] = fold_idx
-        run["part"] = "cross"
-        run["run_start"] = run_start
-        run["positive_class_ratio"] = class_ratio
-
-        # Train
-        global_step = 0
-        for epoch in tqdm(range(CFG.num_epochs)):
-            print(f"Training epoch {epoch}...")
-            global_step = train_one_epoch(model, train_loader, device, optim, scheduler, CFG.use_amp, scaler,
-                                          global_step, run)
-
-            if CFG.folds != "no":
-                # Loss and in-batch accuracy for training validation set
-                print(f"Evaluating epoch {epoch}...")
-                all_probs, loss = evaluate(model, val_loader, device, global_step, run)
-                fscores = get_cross_f2(all_probs, val_corr_df)
-                del all_probs
-                log_fscores(fscores, global_step, run)
-                del fscores
-
-                if CFG.scheduler == "plateau":
-                    scheduler.step(loss)
-
-            # Save checkpoint
-            if CFG.checkpoint:
-                if CFG.gpus > 1:
-                    save_checkpoint(checkpoint_dir / f"{run_id}" / f"epoch-{epoch}.pt", global_step,
-                                    model.module.state_dict(), optim.state_dict(), None, scaler.state_dict())
-                else:
-                    save_checkpoint(checkpoint_dir / f"{run_id}" / f"epoch-{epoch}.pt", global_step,
-                                    model.state_dict(), optim.state_dict(), None, scaler.state_dict())
-
-        # Save artifacts
-        out_dir = output_dir / f"{run_id}" / "cross"
-        out_dir.mkdir(parents=True, exist_ok=True)
-        # (output_dir / f"{run_id}" / "tokenizer").mkdir(parents=True, exist_ok=True)
-        if CFG.gpus > 1:
-            model.module.save(out_dir)
-        else:
-            model.save(out_dir)
-        # tokenizer.tokenizer.save_pretrained(output_dir / f"{run_id}" / "tokenizer")
-
-        fold_idx += 1
-        run.stop()
+            scaler.scale(loss).backward()
+            scaler.step(optim)
+            scaler.update()
+            optim.zero_grad()
 
 
 if __name__ == "__main__":
