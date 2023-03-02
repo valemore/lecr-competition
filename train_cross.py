@@ -184,5 +184,6 @@ if __name__ == "__main__":
 
     seed_everything(CFG.TRAINING_SEED)
     tokenizer.init_tokenizer()
+    torch.set_float32_matmul_precision("medium") # TODO?
 
     main()

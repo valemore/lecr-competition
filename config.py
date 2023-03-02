@@ -33,7 +33,7 @@ class CFG:
 
     # Cross-Encoder
     CROSS_MODEL_NAME = "bert-base-multilingual-uncased"
-    CROSS_NUM_TOKENS = 256
+    CROSS_NUM_TOKENS = 128
 
     # Config options only needed during training
     tiny = None
