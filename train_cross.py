@@ -32,6 +32,10 @@ def main():
     if CFG.tiny:
         corr_df = corr_df.sample(10).reset_index(drop=True)
         content_df = content_df.loc[content_df["id"].isin(set(flatten_positive_negative_content_ids(corr_df))), :].reset_index(drop=True)
+    elif CFG.small:
+        corr_df = corr_df.sample(1000).reset_index(drop=True)
+    elif CFG.medium:
+        corr_df = corr_df.sample(10000).reset_index(drop=True)
 
     class_ratio = get_positive_class_ratio(corr_df, CFG.cross_num_cands)
     print(f"Positive class ratio: {class_ratio}")
@@ -121,6 +125,8 @@ def main():
 if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument("--tiny", action="store_true")
+    parser.add_argument("--small", action="store_true")
+    parser.add_argument("--medium", action="store_true")
     parser.add_argument("--batch_size", type=int, default=64)
     parser.add_argument("--max_lr", type=float, default=3e-5)
     parser.add_argument("--weight_decay", type=float, default=0.0)
@@ -149,6 +155,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     CFG.tiny = args.tiny
+    CFG.medium = args.medium
+    CFG.small = args.small
     CFG.batch_size = args.batch_size
     CFG.max_lr = args.max_lr
     CFG.weight_decay = args.weight_decay
