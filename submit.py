@@ -11,8 +11,9 @@ from bienc.model import BiencoderModule
 from bienc.tokenizer import init_tokenizer
 from config import CFG
 from cross.dset import CrossInferenceDataset
-from cross.inference import predict
+from cross.inference import predict_probs
 from cross.model import CrossEncoder
+from cross.post import post_process
 from data.content import get_content2text
 from data.topics import get_topic2text
 from typehints import FName
@@ -48,8 +49,10 @@ def cross_main(classifier_thresh: float, cand_df: pd.DataFrame, topic2text, cont
                batch_size: int, device: torch.device):
     model = get_cross(cross_dir, device)
     dset = CrossInferenceDataset(cand_df["topic_id"], cand_df["cands"], topic2text, content2text, CFG.CROSS_NUM_TOKENS)
-    all_preds = predict(model, dset, classifier_thresh, batch_size, device)
-    return all_preds
+    probs = predict_probs(model, dset, batch_size, device)
+    probs = post_process(probs, cand_df["topic_id"], cand_df["cands"])
+    preds = (probs >= classifier_thresh).astype(int)
+    return preds
 
 
 def get_submission_df(t2preds: Dict[str, Set[str]]) -> pd.DataFrame:

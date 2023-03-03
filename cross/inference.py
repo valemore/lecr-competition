@@ -7,9 +7,9 @@ from config import CFG
 from cross.dset import CrossInferenceDataset
 
 
-def predict(model, dset: CrossInferenceDataset, classifier_thresh: float, batch_size: int, device: torch.device):
+def predict_probs(model, dset: CrossInferenceDataset, batch_size: int, device: torch.device):
     loader = DataLoader(dset, batch_size, num_workers=CFG.NUM_WORKERS, shuffle=False)
-    all_preds = np.empty(len(dset), dtype=int)
+    all_probs = np.empty(len(dset), dtype=int)
     model.eval()
     i = 0
     for batch in tqdm(loader):
@@ -18,6 +18,6 @@ def predict(model, dset: CrossInferenceDataset, classifier_thresh: float, batch_
             logits = model(*batch)
         probs = logits.softmax(dim=1)[:, 1]
         bs = logits.shape[0]
-        all_preds[i:(i+bs)] = (probs >= classifier_thresh).cpu().numpy()
+        all_probs[i:(i+bs)] = probs.cpu().numpy()
         i += bs
-    return all_preds
+    return all_probs
