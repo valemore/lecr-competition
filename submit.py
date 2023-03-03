@@ -50,7 +50,7 @@ def cross_main(classifier_thresh: float, cand_df: pd.DataFrame, topic2text, cont
     model = get_cross(cross_dir, device)
     dset = CrossInferenceDataset(cand_df["topic_id"], cand_df["cands"], topic2text, content2text, CFG.CROSS_NUM_TOKENS)
     probs = predict_probs(model, dset, batch_size, device)
-    probs = post_process(probs, dset.topic_ids, dset.content_ids)
+    probs = post_process(probs, dset.topic_ids)
     preds = (probs >= classifier_thresh).astype(int)
     df = pd.DataFrame({"topic_id": dset.topic_ids, "content_id": dset.content_ids, "pred": preds})
     return df

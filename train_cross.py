@@ -178,7 +178,7 @@ def main():
                 # Loss and in-batch accuracy for training validation set
                 print(f"Evaluating epoch {epoch}...")
                 all_probs, loss = evaluate(model, val_dset, device, global_step, run)
-                all_probs = post_process(all_probs, val_dset.topic_ids,val_dset.content_ids)
+                all_probs = post_process(all_probs, val_dset.topic_ids)
                 fscores = get_cross_f2(all_probs, val_corr_df)
                 del all_probs
                 log_fscores(fscores, global_step, run)

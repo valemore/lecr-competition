@@ -4,12 +4,11 @@ from typing import List
 from utils import is_ordered
 
 
-def post_process(probs, topic_ids: List[str], content_ids: List[str]):
+def post_process(probs, topic_ids: List[str]):
     """
     Post-process predicted probabilities. For every topic, we modify the probability of the most likely content to 1.0.
     :param probs: numpy array of shape (num_topics,) indicating probability that content is is assigned to topic
-    :param topic_ids:
-    :param content_ids:
+    :param topic_ids: topic ids in the same order as probs
     :return: post-processed probs array of shape (num_topics,) with probabilities of most likely contents set to 1.0
     """
     assert is_ordered(topic_ids)
