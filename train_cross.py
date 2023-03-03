@@ -68,6 +68,7 @@ def evaluate(model: CrossEncoder, loader: DataLoader, device: torch.device,
     for batch in tqdm(loader):
         batch = tuple(x.to(device) for x in batch)
         *model_input, labels = batch
+        # TODO Autocast?
         with torch.no_grad():
             logits = model(*model_input)
         loss = F.cross_entropy(logits, labels)
@@ -75,6 +76,7 @@ def evaluate(model: CrossEncoder, loader: DataLoader, device: torch.device,
         bs = logits.shape[0]
         probs[i:(i+bs)] = probs.cpu().reshape(-1)
         loss_cumsum += loss.item()
+        i += bs
         num_batches += 1
 
     loss = loss_cumsum / num_batches
@@ -88,7 +90,7 @@ def main():
     device = torch.device("cuda")
     CFG.gpus = torch.cuda.device_count()
     if CFG.gpus > 1:
-        CFG.NUM_WORKERS = 6 * CFG.gpus
+        CFG.NUM_WORKERS = 0
     output_dir = Path(CFG.output_dir)
     checkpoint_dir = Path(CFG.checkpoint_dir)
 
