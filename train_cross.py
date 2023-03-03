@@ -38,7 +38,7 @@ def train_one_epoch(model: CrossEncoder, loader: DataLoader, device: torch.devic
         *model_input, labels = batch
         with torch.cuda.amp.autocast(enabled=use_amp):
             logits = model(*model_input)
-            loss = F.cross_entropy(logits, labels)
+            loss = F.binary_cross_entropy_with_logits(logits, labels.reshape(-1, 1).float())
 
         scaler.scale(loss).backward()
         scaler.step(optim)
@@ -73,8 +73,8 @@ def evaluate(model: CrossEncoder, dset: CrossDataset, device: torch.device,
         # TODO Autocast?
         with torch.no_grad():
             logits = model(*model_input)
-        loss = F.cross_entropy(logits, labels)
-        probs = logits.softmax(dim=1)[:, 1]
+        loss = F.binary_cross_entropy_with_logits(logits, labels.reshape(-1, 1).float())
+        probs = logits.sigmoid()
         bs = logits.shape[0]
         all_probs[i:(i+bs)] = probs.cpu().reshape(-1)
         loss_cumsum += loss.item()
