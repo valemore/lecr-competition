@@ -74,7 +74,7 @@ def evaluate(model: CrossEncoder, loader: DataLoader, device: torch.device,
         loss = F.cross_entropy(logits, labels)
         probs = logits.softmax(dim=1)[:, 1]
         bs = logits.shape[0]
-        probs[i:(i+bs)] = probs.cpu().reshape(-1)
+        all_probs[i:(i+bs)] = probs.cpu().reshape(-1)
         loss_cumsum += loss.item()
         i += bs
         num_batches += 1
