@@ -58,9 +58,10 @@ def train_one_epoch(model: CrossEncoder, loader: DataLoader, device: torch.devic
     return step
 
 
-def evaluate(model: CrossEncoder, loader: DataLoader, device: torch.device,
+def evaluate(model: CrossEncoder, dset: CrossDataset, device: torch.device,
              global_step: int, run: Run):
-    all_probs = torch.empty(len(loader.dataset), dtype=torch.float)
+    loader = DataLoader(dset, batch_size=CFG.batch_size, num_workers=CFG.NUM_WORKERS, shuffle=False)
+    all_probs = torch.empty(len(dset), dtype=torch.float)
     loss_cumsum = 0.0
     num_batches = 0
     model.eval()
@@ -135,7 +136,6 @@ def main():
             val_corr_df = corr_df.loc[corr_df["topic_id"].isin(val_topics), :].reset_index(drop=True)
             val_dset = CrossDataset(val_corr_df["topic_id"], val_corr_df["content_ids"], val_corr_df["cands"],
                                     topic2text, content2text, CFG.CROSS_NUM_TOKENS, is_val=True)
-            val_loader = DataLoader(val_dset, batch_size=CFG.batch_size, num_workers=CFG.NUM_WORKERS, shuffle=False)
 
         model = CrossEncoder(dropout=CFG.cross_dropout)
         if CFG.gpus > 1:
@@ -176,7 +176,7 @@ def main():
             if CFG.folds != "no":
                 # Loss and in-batch accuracy for training validation set
                 print(f"Evaluating epoch {epoch}...")
-                all_probs, loss = evaluate(model, val_loader, device, global_step, run)
+                all_probs, loss = evaluate(model, val_dset, device, global_step, run)
                 fscores = get_cross_f2(all_probs, val_corr_df)
                 del all_probs
                 log_fscores(fscores, global_step, run)
