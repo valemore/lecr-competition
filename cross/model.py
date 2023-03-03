@@ -15,7 +15,7 @@ class CrossEncoder(nn.Module):
         else:
             self.encoder = AutoModel.from_pretrained(CFG.CROSS_MODEL_NAME)
         self.dropout = nn.Dropout(dropout)
-        self.classifier = nn.Linear(self.encoder.config.hidden_size, 1)
+        self.classifier = nn.Linear(self.encoder.config.hidden_size, 2)
 
     def forward(self, input_ids, attention_mask):
         out = self.encoder(input_ids, attention_mask)
