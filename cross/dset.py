@@ -4,7 +4,7 @@ import torch
 from torch.utils.data import Dataset
 from tqdm import tqdm
 
-from bienc.tokenizer import tokenize_cross
+from cross.tokenizer import tokenize_cross
 
 
 class CrossDataset(Dataset):

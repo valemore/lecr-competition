@@ -8,7 +8,8 @@ import torch
 from bienc.gen_cands import get_cand_df
 from bienc.inference import do_nn
 from bienc.model import BiencoderModule
-from bienc.tokenizer import init_tokenizer
+from bienc.tokenizer import init_tokenizer as init_bienc_tokenizer
+from cross.tokenizer import init_tokenizer as init_cross_tokenizer
 from config import CFG
 from cross.dset import CrossInferenceDataset
 from cross.inference import predict_probs
@@ -64,12 +65,15 @@ def to_submission_df_inplace(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def main(classifier_thresh: float,
-         data_dir: FName, tokenizer_dir: FName, bienc_dir: FName, cross_dir: FName,
+         data_dir: FName,
+         bienc_tokenizer_dir: FName, bienc_dir: FName,
+         cross_tokenizer_dir: FName, cross_dir: FName,
          filter_lang: bool,
          bienc_batch_size: int, cross_batch_size: int):
     data_dir = Path(data_dir)
     device = torch.device("cuda")
-    init_tokenizer(tokenizer_dir)
+    init_bienc_tokenizer(bienc_tokenizer_dir)
+    init_cross_tokenizer(cross_tokenizer_dir)
 
     topics_df, content_df, input_df = get_dfs(data_dir, "submit")
     topic_ids = sorted(list(set(input_df["topic_id"])))

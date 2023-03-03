@@ -10,7 +10,7 @@ import torch.nn as nn
 from sklearn.model_selection import KFold
 from torch.utils.data import DataLoader
 
-import bienc.tokenizer as tokenizer
+import cross.tokenizer as tokenizer
 from ceevee import get_source_nonsource_topics
 from config import CFG, to_config_dct
 from cross.dset import CrossDataset

@@ -15,7 +15,7 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau, CosineAnnealingWarmResta
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-import bienc.tokenizer as tokenizer
+import cross.tokenizer as tokenizer
 from ceevee import get_source_nonsource_topics
 from config import CFG, to_config_dct
 from cross.dset import CrossDataset
