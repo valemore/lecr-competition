@@ -56,6 +56,11 @@ pd.Series(len(x) for x in content2topics.values()).describe()
 # 75%           2.000000
 # max         241.000000
 
+(pd.Series(len(x) for x in content2topics.values())).quantile([0.9, 0.95, 0.99])
+# 0.90     4.0
+# 0.95     5.0
+# 0.99    10.0
+
 (pd.Series(len(x) for x in content2topics.values()) > 20).value_counts()
 # False    153912
 # True        135
@@ -73,9 +78,6 @@ for topic_id, channel in zip(topics_df["id"], topics_df["channel"]):
 corr_df["num_contents"] = [len(x.split()) for x in corr_df["content_ids"]]
 corr_df["channel"] = [topic2channel[x] for x in corr_df["topic_id"]]
 foo = corr_df.groupby("channel").sum("num_contents")
-channel2num_examples =
-# TODO
-
 
 
 # Content 2 channels
@@ -89,6 +91,20 @@ for topic_id, content_ids in zip(corr_df["topic_id"], corr_df["content_ids"]):
 (pd.Series(len(x) for x in content2channels.values()) > 4).value_counts()
 # False    152068
 # True       1979
+
+(pd.Series(len(x) for x in content2channels.values())).describe()
+# count    154047.000000
+# mean          1.286776
+# std           0.847169
+# min           1.000000
+# 25%           1.000000
+# 50%           1.000000
+# 75%           1.000000
+# max          17.000000
+(pd.Series(len(x) for x in content2channels.values())).quantile([0.8, 0.9, 0.95, 0.99])
+# 0.90    2.0
+# 0.95    3.0
+# 0.99    5.0
 
 
 # Can content be associated with multiple topics/channels? Yes!
