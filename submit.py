@@ -46,21 +46,20 @@ def bienc_main(topic_ids: List[str], content_ids: List[str],
 
 
 def cross_main(classifier_thresh: float, cand_df: pd.DataFrame, topic2text, content2text, cross_dir: FName,
-               batch_size: int, device: torch.device):
+               batch_size: int, device: torch.device) -> pd.DataFrame:
     model = get_cross(cross_dir, device)
     dset = CrossInferenceDataset(cand_df["topic_id"], cand_df["cands"], topic2text, content2text, CFG.CROSS_NUM_TOKENS)
     probs = predict_probs(model, dset, batch_size, device)
-    probs = post_process(probs, cand_df["topic_id"], cand_df["cands"])
+    probs = post_process(probs, dset.topic_ids, dset.content_ids)
     preds = (probs >= classifier_thresh).astype(int)
-    return preds
+    df = pd.DataFrame({"topic_id": dset.topic_ids, "content_id": dset.content_ids, "pred": preds})
+    return df
 
 
-def get_submission_df(t2preds: Dict[str, Set[str]]) -> pd.DataFrame:
-    def to_str(content_ids):
-        return " ".join(sorted(list(content_ids)))
-    topic_id_col = sorted(t2preds.keys())
-    content_ids_col = [to_str(t2preds[topic_id]) for topic_id in topic_id_col]
-    df = pd.DataFrame({"topic_id": topic_id_col, "content_ids": content_ids_col})
+def to_submission_df_inplace(df: pd.DataFrame) -> pd.DataFrame:
+    df = df.loc[df["pred"] == 1, :]
+    df = df.groupby("topic_id").agg(lambda x: " ".join(x)).reset_index(drop=True)
+    df = df.rename(columns={"content_id": "content_ids"})
     return df
 
 
@@ -73,7 +72,7 @@ def main(classifier_thresh: float,
     init_tokenizer(tokenizer_dir)
 
     topics_df, content_df, input_df = get_dfs(data_dir, "submit")
-    topic_ids = sorted(input_df["topic_id"])
+    topic_ids = sorted(list(set(input_df["topic_id"])))
     content_ids, c2i = get_content_ids_c2i(content_df)
     topic2text = get_topic2text(topics_df)
     content2text = get_content2text(content_df)
@@ -87,18 +86,7 @@ def main(classifier_thresh: float,
     cand_df = get_cand_df(topic_ids, indices, c2i)
     del indices
     gc.collect()
-    all_preds = cross_main(classifier_thresh, cand_df, topic2text, content2text, cross_dir, cross_batch_size, device)
 
-    # TODO
-    t2preds = {}
-    for topic_id in topic_ids:
-        t2preds[topic_id] = set()
-    i = 0
-    for topic_id, topic_cand_ids in zip(cand_df["topic_id"], cand_df["cands"]):
-        for cand_id in topic_cand_ids.split():
-            if all_preds[i]:
-                t2preds[topic_id].add(cand_id)
-            i += 1
-
-    submission_df = get_submission_df(t2preds)
-    return submission_df
+    df = cross_main(classifier_thresh, cand_df, topic2text, content2text, cross_dir, cross_batch_size, device)
+    df = to_submission_df_inplace(df)
+    return df
