@@ -138,7 +138,7 @@ def get_dfs(data_dir: FName, mode: str):
         return " ".join([cand_id for cand_id in cat_cand_ids.split() if cand_id != "dummy"])
 
     def truncate_cands(cat_cand_ids: str, max_num_cands):
-        return " ".join([cand_id for cand_id in cat_cand_ids.split()][:CFG.cross_num_cands])
+        return " ".join([cand_id for cand_id in cat_cand_ids.split()][:max_num_cands])
 
     data_dir = Path(data_dir)
     topics_df = pd.read_csv(data_dir / "topics.csv", keep_default_na=False)
