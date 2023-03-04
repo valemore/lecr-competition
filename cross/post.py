@@ -15,9 +15,9 @@ def post_process(probs, topic_ids: List[str]):
 
     def argmax_helper(idxs):
         """Finds the index among topic indices IDXS indicating maximum probability in probs among relevant contents."""
-        max_i = idxs[0]
+        max_i = next(idxs)
         max_prob = probs[max_i]
-        for i in idxs[1:]:
+        for i in idxs:
             prob = probs[i]
             if prob > max_prob:
                 max_i = i
@@ -26,7 +26,7 @@ def post_process(probs, topic_ids: List[str]):
 
 
     for topic_id, topic_idxs in itertools.groupby(range(len(topic_ids)), lambda i: topic_ids[i]):
-        max_i = argmax_helper(list(topic_idxs))
+        max_i = argmax_helper(topic_idxs)
         probs[max_i] = 1.0
 
     return probs
