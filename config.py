@@ -41,6 +41,7 @@ class CFG:
     gpus = None
     max_lr = None
     weight_decay = None
+    clip = None
     margin = None
     num_epochs = None
     use_amp = None

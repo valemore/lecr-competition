@@ -40,10 +40,13 @@ def train_one_epoch(model: CrossEncoder, loader: DataLoader, device: torch.devic
             logits = model(*model_input)
             loss = F.cross_entropy(logits, labels)
 
+        optim.zero_grad()
         scaler.scale(loss).backward()
+        if CFG.clip:
+            scaler.unscale_(optim)
+            nn.utils.clip_grad_norm_(model.parameters(), CFG.clip)
         scaler.step(optim)
         scaler.update()
-        optim.zero_grad()
 
         if CFG.scheduler == "cosine":
             scheduler.step()
@@ -218,6 +221,7 @@ if __name__ == "__main__":
     parser.add_argument("--batch_size", type=int, default=64)
     parser.add_argument("--max_lr", type=float, default=3e-5)
     parser.add_argument("--weight_decay", type=float, default=0.0)
+    parser.add_argument("--clip", type=float)
     parser.add_argument("--num_epochs", type=int, default=3)
     parser.add_argument("--use_fp", action="store_true")
     parser.add_argument("--scheduler", type=str, choices=["none", "cosine", "plateau"], default="none")
@@ -246,6 +250,7 @@ if __name__ == "__main__":
     CFG.batch_size = args.batch_size
     CFG.max_lr = args.max_lr
     CFG.weight_decay = args.weight_decay
+    CFG.clip = args.clip
     CFG.num_epochs = args.num_epochs
     CFG.use_amp = not args.use_fp
     CFG.scheduler = args.scheduler
