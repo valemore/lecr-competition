@@ -1,4 +1,8 @@
 #!/bin/sh
+if [ $# -eq 0 ]
+  then
+    echo "No arguments supplied"
+fi
 SSH_PROFILE=$1
 BASE_DIR='/root/kolibri'
 CODE_DIR="$BASE_DIR/kolibri-code"
