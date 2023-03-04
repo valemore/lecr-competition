@@ -99,7 +99,7 @@ def main():
     topics_df, content_df, corr_df = get_dfs(CFG.DATA_DIR, "cross")
 
     if CFG.tiny:
-        corr_df = corr_df.sample(10).reset_index(drop=True)
+        corr_df = corr_df.sample(10).sort_values("topic_id").reset_index(drop=True)
         content_df = content_df.loc[content_df["id"].isin(set(flatten_positive_negative_content_ids(corr_df))), :].reset_index(drop=True)
     elif CFG.small:
         corr_df = corr_df.sample(1000).reset_index(drop=True)

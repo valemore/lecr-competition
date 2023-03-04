@@ -151,7 +151,6 @@ def get_dfs(data_dir: FName, mode: str):
 
     if mode == "submit":
         input_df = pd.read_csv(data_dir / "sample_submission.csv", keep_default_na=False)
-        input_df = input_df.sort_values("topic_id").reset_index(drop=True)
         input_df = input_df.merge(topics_df.loc[:, ["id", "language"]], left_on="topic_id", right_on="id", how="left")
     elif mode == "bienc":
         input_df = pd.read_csv(data_dir / "correlations.csv", keep_default_na=False)
@@ -161,6 +160,11 @@ def get_dfs(data_dir: FName, mode: str):
         # Compatibility with old generated cross dfs
         input_df["cands"] = [fix_legacy_cands(cands) for cands in input_df["cands"]]
         input_df["cands"] = [truncate_cands(cands, CFG.cross_num_cands) for cands in input_df["cands"]]
+
+    # Sort
+    topics_df = topics_df.sort_values("id").reset_index(drop=True)
+    content_df = content_df.sort_values("id").reset_index(drop=True)
+    input_df = input_df.sort_values("topic_id").reset_index(drop=True)
 
     return topics_df, content_df, input_df
 
