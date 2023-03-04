@@ -20,6 +20,6 @@ def get_cand_df(topic_ids: List[str], indices, c2i: Dict[str, int], max_num_cand
         cands = [i2c[pred_idx] for pred_idx in pred_idxs if pred_idx != -1]
         if not cands:
             print(f"No matching language candidates for topic id {topic_id}!")
-            cands = pred_idxs
+            cands = [i2c[pred_idx] for pred_idx in pred_idxs]
         all_topic_cand_ids.append(" ".join(cands))
     return pd.DataFrame({"topic_id": topic_ids, "cands": all_topic_cand_ids})
