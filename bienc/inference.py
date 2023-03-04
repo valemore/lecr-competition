@@ -113,7 +113,8 @@ def filter_languages(indices, topic_ids: List[str], c2i: Dict[str, int], t2lang:
             indices[i, :len(matching_lang_idxs)] = np.array(matching_lang_idxs, dtype=float)
             indices[i, len(matching_lang_idxs):] = -1
         else:
-            indices[i, :] = -1
+            # TODO
+            indices[i, 1:] = -1
 
     return indices
 
