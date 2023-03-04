@@ -57,7 +57,7 @@ def cross_main(classifier_thresh: float, cand_df: pd.DataFrame, topic2text, cont
     return df
 
 
-def to_submission_df_inplace(df: pd.DataFrame) -> pd.DataFrame:
+def to_submission_df(df: pd.DataFrame) -> pd.DataFrame:
     df = df.loc[df["pred"] == 1, ["topic_id", "content_id"]].reset_index(drop=True)
     df = df.groupby("topic_id").agg(lambda x: " ".join(x)).reset_index()
     df = df.rename(columns={"content_id": "content_ids"})
@@ -92,5 +92,5 @@ def main(classifier_thresh: float,
     gc.collect()
 
     df = cross_main(classifier_thresh, cand_df, topic2text, content2text, cross_dir, cross_batch_size, device)
-    df = to_submission_df_inplace(df)
+    df = to_submission_df(df)
     return df
