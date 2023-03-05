@@ -9,7 +9,7 @@ from cross.dset import CrossInferenceDataset
 
 def predict_probs(model, dset: CrossInferenceDataset, batch_size: int, device: torch.device):
     loader = DataLoader(dset, batch_size, num_workers=CFG.NUM_WORKERS, shuffle=False)
-    all_probs = np.empty(len(dset), dtype=int)
+    all_probs = np.empty(len(dset), dtype=float)
     model.eval()
     i = 0
     for batch in tqdm(loader):
@@ -20,4 +20,5 @@ def predict_probs(model, dset: CrossInferenceDataset, batch_size: int, device: t
         bs = logits.shape[0]
         all_probs[i:(i+bs)] = probs.cpu().numpy()
         i += bs
+    assert len(all_probs) == i
     return all_probs
