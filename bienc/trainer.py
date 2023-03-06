@@ -189,7 +189,7 @@ def evaluate_inference(encoder: BiencoderModule, device: torch.device, batch_siz
 
     # Cands metrics
     get_log_mir_metrics(indices, topic_ids, c2i, t2gold, global_step, run)
-    precision_dct, recall_dct, micro_prec_dct, pcr_dct = get_bienc_cands_metrics(indices, topic_ids, c2i, t2gold, 100)
+    precision_dct, recall_dct, micro_prec_dct, pcr_dct = get_bienc_cands_metrics(indices, topic_ids, c2i, t2gold, CFG.NUM_NEIGHBORS)
     avg_precision = get_average_precision_cands(indices, topic_ids, c2i, t2gold)
     print(f"Mean average precision (cands) @ {CFG.NUM_NEIGHBORS}: {avg_precision:.5}")
     run["cands/avg_precision"].log(avg_precision, step=global_step)
