@@ -154,7 +154,7 @@ def get_dfs(data_dir: FName, mode: str):
         input_df = input_df.merge(topics_df.loc[:, ["id", "language"]], left_on="topic_id", right_on="id", how="left")
     elif mode == "bienc":
         input_df = pd.read_csv(data_dir / "correlations.csv", keep_default_na=False)
-        input_df = input_df.merge(topics_df.loc[:, ["id", "language"]], left_on="topic_id", right_on="id", how="left")
+        input_df = input_df.merge(topics_df.loc[:, ["id", "language"]], left_on="topic_id", right_on="id", how="left").drop(columns=["id"])
     else:
         input_df = pd.read_csv(CFG.cross_corr_fname, keep_default_na=False)
         # Compatibility with old generated cross dfs

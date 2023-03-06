@@ -62,7 +62,7 @@ def filter_duplicates_inplace(input_df, topics_df, repr_depth):
         topic2parent[topic_id] = parent_id
 
     input_df["dup_repr"] = [build_topic_repr(x, repr_depth) for x in input_df["topic_id"]]
-    input_df = input_df.merge(topics_df.loc[:, ["id", "category"]], left_on="topic_id", right_on="id", how="left")
+    input_df = input_df.merge(topics_df.loc[:, ["id", "category"]], left_on="topic_id", right_on="id", how="left").drop(columns=["id"])
     input_df["dup_isnonsource"] = (input_df["category"] != "source").astype(int)
     input_df = input_df.sort_values(["dup_repr", "dup_isnonsource"], ascending=[True, True])
     input_df = input_df.drop_duplicates("dup_repr").reset_index(drop=True)
