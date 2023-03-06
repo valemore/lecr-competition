@@ -41,3 +41,29 @@ def get_corr_df_source_nonsource_channels(corr_df, topics_df):
     source_channels = sorted([channel_id for channel_id in channels if channel2category[channel_id] == "source"])
     nonsource_channels = sorted([channeld_id for channeld_id in channels if channel2category[channeld_id] != "source"])
     return corr_df, source_channels, nonsource_channels
+
+
+def filter_duplicates_inplace(input_df, topics_df, repr_depth):
+    def build_topic_repr(topic_id, depth=2):
+        text = topic2title[topic_id]
+        if depth == 0:
+            return text
+        parent = topic2parent[topic_id]
+        if parent:
+            text += " <<< " + build_topic_repr(parent, depth-1)
+        return text
+
+    topic2title = {}
+    topic2description = {}
+    topic2parent = {}
+    for topic_id, title, description, parent_id in zip(topics_df["id"], topics_df["title"], topics_df["description"], topics_df["parent"]):
+        topic2title[topic_id] = title
+        topic2description[topic_id] = description
+        topic2parent[topic_id] = parent_id
+
+    input_df["dup_repr"] = [build_topic_repr(x, repr_depth) for x in input_df["topic_id"]]
+
+    input_df = input_df.drop_duplicates("dup_repr").reset_index(drop=True)
+    input_df = input_df.drop(columns=["dup_repr"])
+
+    return input_df

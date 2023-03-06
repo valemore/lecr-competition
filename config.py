@@ -18,6 +18,7 @@ class CFG:
     # Validation split seed and training seed
     VAL_SPLIT_SEED = 623
     TRAINING_SEED = 23227
+    DUP_FILTER_DEPTH = 1
 
     # Bi-Encoder
     BIENC_MODEL_NAME = "bert-base-multilingual-uncased"
