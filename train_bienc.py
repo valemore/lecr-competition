@@ -16,7 +16,7 @@ from bienc.dset import BiencDataset
 from bienc.losses import BidirectionalMarginLoss
 from bienc.model import Biencoder
 from bienc.sampler import SameLanguageSampler
-from ceevee import get_topics_in_corr, filter_duplicates_inplace
+from ceevee import get_topics_in_corr
 from config import CFG, to_config_dct
 from data.content import get_content2text
 from data.topics import get_topic2text
@@ -35,8 +35,6 @@ def main():
     cross_output_dir = Path(CFG.cross_output_dir)
 
     topics_df, content_df, corr_df = get_dfs(CFG.DATA_DIR, "bienc")
-
-    corr_df = filter_duplicates_inplace(corr_df, topics_df, CFG.DUP_FILTER_DEPTH)
 
     if CFG.tiny:
         corr_df = corr_df.sample(1000).reset_index(drop=True)

@@ -16,7 +16,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 import cross.tokenizer as tokenizer
-from ceevee import get_source_nonsource_topics, filter_duplicates_inplace
+from ceevee import get_source_nonsource_topics
 from config import CFG, to_config_dct
 from cross.dset import CrossDataset
 from cross.metrics import get_positive_class_ratio, get_cross_f2, log_fscores
@@ -100,8 +100,6 @@ def main():
     checkpoint_dir = Path(CFG.checkpoint_dir)
 
     topics_df, content_df, corr_df = get_dfs(CFG.DATA_DIR, "cross")
-
-    corr_df = filter_duplicates_inplace(corr_df, topics_df, CFG.DUP_FILTER_DEPTH)
 
     if CFG.tiny:
         corr_df = corr_df.sample(10).sort_values("topic_id").reset_index(drop=True)
