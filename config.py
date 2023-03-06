@@ -28,7 +28,7 @@ class CFG:
     # TODO: Validate scale? Scale as optimizable parameter?
     SCORE_SCALE = 20.0
 
-    NUM_NEIGHBORS = 100 # Used for NN model
+    NUM_NEIGHBORS = 400 # Used for NN model
     MAX_NUM_CANDS = 100 # Used for writing cand df
     FILTER_LANG = True
 
