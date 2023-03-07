@@ -140,17 +140,13 @@ class LitBienc(pl.LightningModule):
         return {"acc": acc.item(), "loss": loss.item()}
 
     def validation_epoch_end(self, outputs):
-        if CFG.tune_lr or CFG.tune_bs:
-            return
         dct = agg_outputs(outputs)
         print(f"Evaluation in-batch accuracy: {dct['acc']:.5}")
         print(f"Evaluation loss: {dct['loss']:.5}")
         self.run["val/acc"].log(dct['acc'], step=self.global_step)
         self.run["val/loss"].log(dct['loss'], step=self.global_step)
 
-    def on_train_epoch_end(self):
-        if self.folds == "no" or CFG.tune_lr or CFG.tune_bs:
-            return
+    def on_validation_epoch_end(self):
         print(f"Running inference-mode evaluation for epoch {self.current_epoch}...")
         optim, cross_df, avg_precision = wrap_evaluate_inference(self.bienc, self.device, CFG.batch_size,
                                                                  self.val_corr_df, self.topic2text, self.content2text, self.c2i,
