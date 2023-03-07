@@ -94,6 +94,7 @@ class LitBienc(pl.LightningModule):
         loss = self.loss_fn(scores, mask)
 
         self.manual_backward(loss)
+        self.clip_gradients(opt, gradient_clip_val=CFG.clip, gradient_clip_algorithm="norm")
         opt.step()
 
         # Log

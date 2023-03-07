@@ -150,6 +150,7 @@ if __name__ == "__main__":
     parser.add_argument("--batch_size", type=int, default=128)
     parser.add_argument("--max_lr", type=float, default=3e-5)
     parser.add_argument("--weight_decay", type=float, default=0.0)
+    parser.add_argument("--clip", type=float)
     parser.add_argument("--margin", type=float, default=0.0)
     parser.add_argument("--num_epochs", type=int, default=5)
     parser.add_argument("--use_fp", action="store_true")
@@ -178,6 +179,7 @@ if __name__ == "__main__":
     CFG.batch_size = args.batch_size
     CFG.max_lr = args.max_lr
     CFG.weight_decay = args.weight_decay
+    CFG.clip = args.clip
     CFG.margin = args.margin
     CFG.num_epochs = args.num_epochs
     CFG.use_amp = not args.use_fp
