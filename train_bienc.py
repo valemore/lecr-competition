@@ -33,6 +33,7 @@ def main():
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
     output_dir = Path(CFG.output_dir)
     cross_output_dir = Path(CFG.cross_output_dir)
+    tab_output_dir = Path(CFG.tab_output_dir)
 
     topics_df, content_df, corr_df = get_dfs(CFG.DATA_DIR, "bienc")
 
@@ -104,7 +105,7 @@ def main():
         lit_model = LitBienc(model, loss_fn, get_train_loader,
                              topic2text, content2text, c2i, t2lang, c2lang,
                              CFG.max_lr, CFG.weight_decay, CFG.batch_size,
-                             cross_output_dir, experiment_id,
+                             cross_output_dir, tab_output_dir, experiment_id,
                              CFG.folds, fold_idx, val_corr_df if CFG.folds != "no" else None,
                              run)
         trainer = pl.Trainer(accelerator="gpu", devices=1,
@@ -142,7 +143,15 @@ def main():
         cross_df = cross_df.sort_values("topic_id").reset_index(drop=True)
         cross_df.to_csv(cross_output_dir / f"{experiment_id}" / "all_folds.csv", index=False)
         print(f'Wrote cross df to {cross_output_dir / f"{experiment_id}" / "all_folds.csv"}')
+        del cross_df
 
+        tab_df = pd.DataFrame()
+        for fold_idx in range(CFG.num_folds):
+            tab_df = pd.concat([tab_df, pd.read_csv(tab_output_dir / f"{experiment_id}" / f"fold-{fold_idx}.csv", keep_default_na=False)]).reset_index(drop=True)
+        tab_df = tab_df.sort_values("topic_id").reset_index(drop=True)
+        tab_df.to_csv(tab_output_dir / f"{experiment_id}" / "all_folds.csv", index=False)
+        print(f'Wrote tab df to {cross_output_dir / f"{experiment_id}" / "all_folds.csv"}')
+        del tab_df
 
 
 if __name__ == "__main__":
@@ -163,6 +172,7 @@ if __name__ == "__main__":
     parser.add_argument("--num_folds", type=int, default=5)
     parser.add_argument("--output_dir", type=str, default="../out")
     parser.add_argument("--cross_output_dir", type=str, default="../cross")
+    parser.add_argument("--tab_output_dir", type=str, default="../tab")
 
     parser.add_argument("--data_dir", type=str)
     parser.add_argument("--val_split_seed", type=int)
@@ -192,6 +202,7 @@ if __name__ == "__main__":
     CFG.num_folds = args.num_folds
     CFG.output_dir = args.output_dir
     CFG.cross_output_dir = args.cross_output_dir
+    CFG.tab_output_dir = args.tab_output_dir
 
     if args.data_dir is not None:
         CFG.DATA_DIR = Path(args.data_dir)

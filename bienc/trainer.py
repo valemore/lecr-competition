@@ -14,6 +14,7 @@ from bienc.inference import do_nn
 from bienc.metrics import log_dct, get_log_mir_metrics, get_bienc_cands_metrics, get_average_precision_cands
 from bienc.model import BiencoderModule, Biencoder
 from config import CFG
+from gen_tabular import get_tabular_df
 from utils import get_learning_rate_momentum, are_content_ids_aligned, get_topic_id_gold
 
 
@@ -31,7 +32,7 @@ class LitBienc(pl.LightningModule):
     def __init__(self, bienc, loss_fn, get_train_loader,
                  topic2text, content2text, c2i, t2lang, c2lang,
                  learning_rate, weigth_decay, batch_size,
-                 cross_output_dir, experiment_id,
+                 cross_output_dir, tab_output_dir, experiment_id,
                  folds, fold_idx, val_corr_df, run):
         super().__init__()
         self.bienc = bienc
@@ -47,6 +48,7 @@ class LitBienc(pl.LightningModule):
         self.weight_decay = weigth_decay
         self.batch_size = batch_size
         self.cross_output_dir = cross_output_dir
+        self.tab_output_dir = tab_output_dir
         self.experiment_id = experiment_id
         self.folds = folds
         self.fold_idx = fold_idx
@@ -148,7 +150,7 @@ class LitBienc(pl.LightningModule):
 
     def on_validation_epoch_end(self):
         print(f"Running inference-mode evaluation for epoch {self.current_epoch}...")
-        optim, cross_df, avg_precision = wrap_evaluate_inference(self.bienc, self.device, CFG.batch_size,
+        optim, cross_df, tab_df, avg_precision = wrap_evaluate_inference(self.bienc, self.device, CFG.batch_size,
                                                                  self.val_corr_df, self.topic2text, self.content2text, self.c2i,
                                                                  self.optimizers().optimizer,
                                                                  CFG.FILTER_LANG, self.t2lang, self.c2lang,
@@ -161,23 +163,27 @@ class LitBienc(pl.LightningModule):
 
         if self.current_epoch == CFG.num_epochs - 1:
             (self.cross_output_dir / f"{self.experiment_id}").mkdir(parents=True, exist_ok=True)
+            (self.tab_output_dir / f"{self.experiment_id}").mkdir(parents=True, exist_ok=True)
             cross_df_fname = self.cross_output_dir / f"{self.experiment_id}" / f"fold-{self.fold_idx}.csv"
+            tab_df_fname = self.tab_output_dir / f"{self.experiment_id}" / f"fold-{self.fold_idx}.csv"
             cross_df.to_csv(cross_df_fname, index=False)
+            tab_df.to_csv(tab_df_fname, index=False)
             print(f"Wrote cross df to {cross_df_fname}")
+            print(f"Wrote tabular df to {tab_df_fname}")
 
 
 def evaluate_inference(encoder: BiencoderModule, device: torch.device, batch_size: int, corr_df: pd.DataFrame,
                        topic2text: Dict[str, str], content2text: Dict[str, str], c2i: Dict[str, int],
                        filter_lang: bool, t2lang: Dict[str, str], c2lang: Dict[str, str],
                        gen_cross: bool,
-                       global_step: int, run: Run) -> Tuple[Union[None, pd.DataFrame], float]:
+                       global_step: int, run: Run) -> Tuple[Union[None, pd.DataFrame], Union[None, pd.DataFrame], float]:
     """Evaluates inference mode."""
     # Make sure entity idxs align
     content_ids = sorted(list(content2text.keys()))
     assert are_content_ids_aligned(content_ids, c2i)
 
     topic_ids = sorted(list(set(corr_df["topic_id"])))
-    indices, _ = do_nn(encoder, topic_ids, content_ids, topic2text, content2text,
+    indices, distances = do_nn(encoder, topic_ids, content_ids, topic2text, content2text,
                        filter_lang, t2lang, c2lang, c2i,
                        batch_size, device)
 
@@ -205,9 +211,11 @@ def evaluate_inference(encoder: BiencoderModule, device: torch.device, batch_siz
         cross_df = (get_cand_df(topic_ids, indices, c2i, CFG.MAX_NUM_CANDS)
                         .merge(corr_df.loc[:, ["topic_id", "content_ids"]], on="topic_id", how="left")
                         .loc[:, ["topic_id", "content_ids", "cands"]])
+        tab_df = get_tabular_df(topic_ids, indices, distances, c2i, CFG.MAX_NUM_CANDS)
     else:
         cross_df = None
-    return cross_df, avg_precision
+        tab_df = None
+    return cross_df, tab_df, avg_precision
 
 
 def wrap_evaluate_inference(model: Biencoder, device: torch.device, batch_size: int, corr_df: pd.DataFrame,
@@ -215,13 +223,13 @@ def wrap_evaluate_inference(model: Biencoder, device: torch.device, batch_size: 
                             optim: Optimizer,
                             filter_lang: bool, t2lang: Dict[str, str], c2lang: Dict[str, str],
                             gen_cross: bool,
-                            global_step: int, run: Run) -> Tuple[Optimizer, Union[None, pd.DataFrame], float]:
+                            global_step: int, run: Run) -> Tuple[Optimizer, Union[None, pd.DataFrame], Union[None, pd.DataFrame], float]:
     optimizer_state_dict = optim.state_dict()
-    cross_df, avg_precision = evaluate_inference(model.topic_encoder, device, batch_size,
+    cross_df, tab_df, avg_precision = evaluate_inference(model.topic_encoder, device, batch_size,
                                                  corr_df, topic2text, content2text, e2i,
                                                  filter_lang, t2lang, c2lang,
                                                  gen_cross,
                                                  global_step, run)
     optim = AdamW(model.parameters(), lr=CFG.max_lr, weight_decay=CFG.weight_decay)
     optim.load_state_dict(optimizer_state_dict)
-    return optim, cross_df, avg_precision
+    return optim, cross_df, tab_df, avg_precision
