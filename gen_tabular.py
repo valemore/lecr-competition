@@ -74,7 +74,9 @@ if __name__ == "__main__":
 
     tab_df = pd.DataFrame()
     for fold_idx in range(num_folds):
-        tab_df = pd.concat([tab_df, pd.read_csv(tab_dir / f"fold-{fold_idx}.csv", keep_default_na=False)]).reset_index(drop=True)
+        new = pd.read_csv(tab_dir / f"fold-{fold_idx}.csv", keep_default_na=False)
+        new["fold"] = fold_idx
+        tab_df = pd.concat([tab_df, new]).reset_index(drop=True)
     tab_df = tab_df.sort_values(["topic_id", "rank"]).reset_index(drop=True)
     tab_df.to_csv(tab_dir / "all_folds.csv", index=False)
     print(f'Wrote tabular df to {tab_dir / "roberta-large-cos10_0307-003338" / "all_folds.csv"}')
