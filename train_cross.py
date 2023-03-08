@@ -207,7 +207,7 @@ def main():
             model.module.save(out_dir)
         else:
             model.save(out_dir)
-        # tokenizer.tokenizer.save_pretrained(output_dir / f"{run_id}" / "tokenizer")
+        tokenizer.tokenizer.save_pretrained(output_dir / f"{run_id}" / "tokenizer")
 
         fold_idx += 1
         run.stop()
