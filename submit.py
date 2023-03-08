@@ -40,10 +40,10 @@ def bienc_main(topic_ids: List[str], content_ids: List[str],
                filter_lang: bool, t2lang: Dict[str, str], c2lang: Dict[str, str],
                bienc_dir: FName, batch_size: int, device: torch.device):
     encoder = get_bienc(bienc_dir, device)
-    indices = do_nn(encoder, topic_ids, content_ids, topic2text, content2text,
-                    filter_lang, t2lang, c2lang, c2i,
-                    batch_size, device)
-    return indices
+    indices, distances = do_nn(encoder, topic_ids, content_ids, topic2text, content2text,
+                               filter_lang, t2lang, c2lang, c2i,
+                               batch_size, device)
+    return indices, distances
 
 
 def cross_main(classifier_thresh: float, cand_df: pd.DataFrame, topic2text, content2text, cross_dir: FName,
@@ -83,7 +83,7 @@ def main(classifier_thresh: float,
 
     t2lang, c2lang = get_t2lang_c2lang(input_df, content_df)
 
-    indices = bienc_main(topic_ids, content_ids,
+    indices, _ = bienc_main(topic_ids, content_ids,
                          topic2text, content2text, c2i,
                          filter_lang, t2lang, c2lang,
                          bienc_dir, bienc_batch_size, device)

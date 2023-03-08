@@ -1,5 +1,6 @@
 # Inference for the Bi-encoder
 import gc
+import math
 from typing import Dict, List, Set
 
 import cupy as cp
@@ -88,12 +89,12 @@ def entities_inference(topic_ids: List[str], encoder: BiencoderModule, nn_model:
     loader = DataLoader(dset, batch_size=batch_size, num_workers=CFG.NUM_WORKERS, shuffle=False)
     embs = embed(encoder, loader, device)
     embs = cp.array(embs)
-    indices = nn_model.kneighbors(embs, return_distance=False)
-    indices = cp.asnumpy(indices)
-    return indices
+    distances, indices = nn_model.kneighbors(embs, return_distance=True)
+    distances, indices = cp.asnumpy(distances), cp.asnumpy(indices)
+    return indices, distances
 
 
-def filter_languages(indices, topic_ids: List[str], c2i: Dict[str, int], t2lang: Dict[str, str], c2lang: Dict[str, str]):
+def filter_languages(indices, distances, topic_ids: List[str], c2i: Dict[str, int], t2lang: Dict[str, str], c2lang: Dict[str, str]):
     """
     Filters predicted indices by only allowing candidates that match the topic language.
     Indices for non-matching languages are deleted and their successors move up in rank.
@@ -106,17 +107,21 @@ def filter_languages(indices, topic_ids: List[str], c2i: Dict[str, int], t2lang:
     :return: modified indices numpy array of shape (num_topics, num_neighbors)
     """
     i2c = {content_idx: content_id for content_id, content_idx in c2i.items()}
-    for i, (topic_id, idxs) in enumerate(zip(topic_ids, indices)):
+    for i, (topic_id, idxs, dists) in enumerate(zip(topic_ids, indices, distances)):
         topic_lang = t2lang[topic_id]
-        matching_lang_idxs = [idx for idx in idxs if c2lang[i2c[idx]] == topic_lang]
+        matching_lang_idxs = [(idx, dist) for idx, dist in zip(idxs, dists) if c2lang[i2c[idx]] == topic_lang]
         if matching_lang_idxs:
-            indices[i, :len(matching_lang_idxs)] = np.array(matching_lang_idxs, dtype=float)
-            indices[i, len(matching_lang_idxs):] = -1
+            idxs, dists = zip(*matching_lang_idxs)
+            indices[i, :len(idxs)] = np.array(idxs, dtype=float)
+            indices[i, len(idxs):] = -1
+            distances[i, :len(dists)] = np.array(dists, dtype=float)
+            distances[i, len(dists):] = math.inf
         else:
             # TODO
             indices[i, 1:] = -1
+            distances[i, 1:] = -99
 
-    return indices
+    return indices, distances
 
 
 def do_nn(encoder: BiencoderModule,
@@ -131,10 +136,10 @@ def do_nn(encoder: BiencoderModule,
     nn_model = embed_and_nn(encoder, content_ids, content2text, CFG.NUM_NEIGHBORS, batch_size, device)
 
     # Get nearest neighbor distances and indices
-    indices = entities_inference(topic_ids, encoder, nn_model, topic2text, device, batch_size)
+    indices, distances = entities_inference(topic_ids, encoder, nn_model, topic2text, device, batch_size)
 
     # Filter languages
     if filter_lang:
-        indices = filter_languages(indices, topic_ids, c2i, t2lang, c2lang)
+        indices, distances = filter_languages(indices, distances, topic_ids, c2i, t2lang, c2lang)
 
-    return indices
+    return indices, distances
