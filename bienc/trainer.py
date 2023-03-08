@@ -186,14 +186,19 @@ def evaluate_inference(encoder: BiencoderModule, device: torch.device, batch_siz
 
     # Cands metrics
     get_log_mir_metrics(indices, topic_ids, c2i, t2gold, global_step, run)
-    precision_dct, recall_dct, micro_prec_dct, pcr_dct = get_bienc_cands_metrics(indices, topic_ids, c2i, t2gold, CFG.NUM_NEIGHBORS)
+    precision_dct, recall_dct, micro_prec_dct, pcr_dct, f2_dct, best_f2, best_num_cands = get_bienc_cands_metrics(indices, topic_ids, c2i, t2gold, CFG.NUM_NEIGHBORS)
     avg_precision = get_average_precision_cands(indices, topic_ids, c2i, t2gold)
-    print(f"Mean average precision (cands) @ {CFG.NUM_NEIGHBORS}: {avg_precision:.5}")
+    print(f"Mean average precision @ {CFG.NUM_NEIGHBORS}: {avg_precision:.5}")
     run["cands/avg_precision"].log(avg_precision, step=global_step)
+    print(f"Best F2 @ {best_num_cands}: {best_f2:.5}")
+    run["cands/f2"].log(best_f2, global_step)
+    run["cands/best_num_cands"].log(best_num_cands, global_step)
+
     log_dct(precision_dct, "cands/precision", global_step, run)
     log_dct(recall_dct, "cands/recall", global_step, run)
     log_dct(micro_prec_dct, "cands/micro_precision", global_step, run)
     log_dct(pcr_dct, "cands/pcr", global_step, run)
+    log_dct(f2_dct, "cands/f2", global_step, run)
 
     # Generate cross df
     if gen_cross:

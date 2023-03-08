@@ -5,6 +5,7 @@ import numpy as np
 from neptune.new import Run
 
 from config import CFG
+from metrics import fscore_from_prec_rec
 from typehints import MetricDict
 
 
@@ -24,7 +25,9 @@ def log_dct(dct: Dict[int, float], label: str, global_step: int, run: Run):
         run[f"{label}@{k}"].log(v, step=global_step)
 
 
-def get_bienc_cands_metrics(indices, topic_ids: List[str], c2i: Dict[str, int], t2gold: Dict[str, Set[str]], num_cands: int) -> Tuple[MetricDict, MetricDict, MetricDict, MetricDict]:
+def get_bienc_cands_metrics(indices, topic_ids: List[str],
+                            c2i: Dict[str, int], t2gold: Dict[str, Set[str]],
+                            num_cands: int) -> Tuple[MetricDict, MetricDict, MetricDict, MetricDict, MetricDict, float, float]:
     i2e, tp, num_gold = get_i2c_tp_num_gold(indices, topic_ids, c2i, t2gold)
 
     mesh = list(range(1, num_cands + 1))
@@ -32,14 +35,23 @@ def get_bienc_cands_metrics(indices, topic_ids: List[str], c2i: Dict[str, int], 
     recall_dct = {num_cands: 0.0 for num_cands in mesh}
     micro_prec_dct = {num_cands: 0.0 for num_cands in mesh}
     pcr_dct = {num_cands: 0.0 for num_cands in mesh}
+    f2_dct = {num_cands: 0.0 for num_cands in mesh}
 
     acc_tp = np.zeros(len(topic_ids), dtype=float) # accumulating true positives for all topic ids
+    best_f2 = 0.0
+    best_num_cands = None
     for num_cands in mesh:
         acc_tp += tp[:, num_cands - 1]
         prec = acc_tp / num_cands
         rec = acc_tp / num_gold
         precision_dct[num_cands] = np.mean(prec)
         recall_dct[num_cands] = np.mean(rec)
+
+        f2 = fscore_from_prec_rec(precision_dct[num_cands], recall_dct[num_cands])
+        f2_dct[num_cands] = f2
+        if f2 > best_f2:
+            best_num_cands = num_cands
+            best_f2 = f2
 
         num_preds = len(topic_ids) * num_cands      # total predictions over all topic_ids
         num_fp = num_preds - np.sum(acc_tp)         # total false positive over all topic_ids
@@ -48,7 +60,7 @@ def get_bienc_cands_metrics(indices, topic_ids: List[str], c2i: Dict[str, int], 
         micro_prec_dct[num_cands] = np.sum(acc_tp) / num_preds
         # Positive class ratio: What we expect the positive class ratio to be in gen_cross_data
         pcr_dct[num_cands] = num_gold_all / ( num_fp + num_gold_all)
-    return precision_dct, recall_dct, micro_prec_dct, pcr_dct
+    return precision_dct, recall_dct, micro_prec_dct, pcr_dct, f2_dct, best_f2, best_num_cands
 
 
 def get_average_precision_cands(indices, topic_ids: List[str], c2i: Dict[str, int], t2gold: Dict[str, Set[str]]) -> float:
