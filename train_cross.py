@@ -163,6 +163,8 @@ def main():
             source_files=["**/*.py", "*.py"])
         run["cmd"] = " ".join(sys.argv)
         run_id = f'{CFG.experiment_name}_{run["sys/id"].fetch()}'
+        if CFG.tiny:
+            run_id = "TINY_" + run_id
         run["run_id"] = run_id
         run["parameters"] = to_config_dct(CFG)
         run["fold_idx"] = fold_idx

@@ -54,6 +54,8 @@ def main():
     del topics_df, content_df
 
     experiment_id = f'{CFG.experiment_name}_{datetime.utcnow().strftime("%m%d-%H%M%S")}'
+    if CFG.tiny:
+        experiment_id = "TINY_" + experiment_id
 
     fold_idx = 0 if CFG.folds != "no" else -1
     for train_idxs, val_idxs in KFold(n_splits=CFG.num_folds, shuffle=True, random_state=CFG.VAL_SPLIT_SEED).split(topics_in_corr):
