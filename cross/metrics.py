@@ -3,7 +3,7 @@ import numpy as np
 from metrics import np_fscore
 from utils import safe_div_np
 
-CROSS_EVAL_THRESHS = np.array([round(x, 3) for x in np.arange(0.001, 0.2 + 0.001, 0.001)])
+CROSS_EVAL_THRESHS = np.array([round(x, 3) for x in np.arange(0.001, 1.0 + 0.001, 0.001)])
 
 
 def get_num_tp_num_fp(probs, topic_ids, concatenated_content_ids, concatenated_cand_ids):
