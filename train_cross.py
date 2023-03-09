@@ -22,6 +22,7 @@ from cross.dset import CrossDataset
 from cross.metrics import get_positive_class_ratio, get_cross_f2, log_fscores, sanity_check_bienc_only, get_sanity_micro
 from cross.model import CrossEncoder
 from cross.post import post_process
+from cross.sampler import OverSampler
 from data.content import get_content2text
 from data.topics import get_topic2text
 from utils import sanitize_fname, seed_everything, get_dfs, get_learning_rate_momentum, save_checkpoint
@@ -134,7 +135,7 @@ def main():
         train_dset = CrossDataset(train_corr_df["topic_id"], train_corr_df["content_ids"], train_corr_df["cands"],
                                   topic2text, content2text, CFG.CROSS_NUM_TOKENS, is_val=False)
 
-        train_loader = DataLoader(train_dset, batch_size=CFG.batch_size, num_workers=CFG.NUM_WORKERS, shuffle=True)
+        train_loader = DataLoader(train_dset, batch_size=CFG.batch_size, num_workers=CFG.NUM_WORKERS, sampler=OverSampler(train_dset, 2))
 
         if CFG.folds != "no":
             val_topics = set(nonsource_topics[idx] for idx in val_idxs)
