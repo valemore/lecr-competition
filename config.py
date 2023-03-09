@@ -43,6 +43,7 @@ class CFG:
     weight_decay = None
     clip = None
     token_dropout = None
+    oversample = None
     margin = None
     num_epochs = None
     use_amp = None

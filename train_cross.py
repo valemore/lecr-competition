@@ -135,7 +135,7 @@ def main():
         train_dset = CrossDataset(train_corr_df["topic_id"], train_corr_df["content_ids"], train_corr_df["cands"],
                                   topic2text, content2text, CFG.CROSS_NUM_TOKENS, is_val=False, dropout=CFG.token_dropout)
 
-        train_loader = DataLoader(train_dset, batch_size=CFG.batch_size, num_workers=CFG.NUM_WORKERS, sampler=OverSampler(train_dset, 2))
+        train_loader = DataLoader(train_dset, batch_size=CFG.batch_size, num_workers=CFG.NUM_WORKERS, sampler=OverSampler(train_dset, CFG.oversample))
 
         if CFG.folds != "no":
             val_topics = set(nonsource_topics[idx] for idx in val_idxs)
@@ -236,6 +236,7 @@ if __name__ == "__main__":
     parser.add_argument("--weight_decay", type=float, default=0.0)
     parser.add_argument("--clip", type=float)
     parser.add_argument("--token_dropout", default=0.0, type=float)
+    parser.add_argument("--oversample", default=1, type=int)
     parser.add_argument("--num_epochs", type=int, default=3)
     parser.add_argument("--use_fp", action="store_true")
     parser.add_argument("--scheduler", type=str, choices=["none", "cosine", "plateau"], default="none")
@@ -266,6 +267,7 @@ if __name__ == "__main__":
     CFG.weight_decay = args.weight_decay
     CFG.clip = args.clip
     CFG.token_dropout = args.token_dropout
+    CFG.oversample = args.oversample
     CFG.num_epochs = args.num_epochs
     CFG.use_amp = not args.use_fp
     CFG.scheduler = args.scheduler
