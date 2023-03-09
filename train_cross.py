@@ -4,6 +4,7 @@ from datetime import datetime
 from pathlib import Path
 
 import neptune.new as neptune
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -24,8 +25,8 @@ from cross.model import CrossEncoder
 from cross.post import post_process
 from data.content import get_content2text
 from data.topics import get_topic2text
-from utils import flatten_positive_negative_content_ids, sanitize_fname, \
-    seed_everything, get_dfs, get_learning_rate_momentum, save_checkpoint
+from metrics import fscore_from_prec_rec
+from utils import sanitize_fname, seed_everything, get_dfs, get_learning_rate_momentum, save_checkpoint, safe_div
 
 
 def train_one_epoch(model: CrossEncoder, loader: DataLoader, device: torch.device,
@@ -103,11 +104,10 @@ def main():
 
     if CFG.tiny:
         corr_df = corr_df.sample(10).sort_values("topic_id").reset_index(drop=True)
-        content_df = content_df.loc[content_df["id"].isin(set(flatten_positive_negative_content_ids(corr_df))), :].reset_index(drop=True)
     elif CFG.small:
-        corr_df = corr_df.sample(1000).reset_index(drop=True)
+        corr_df = corr_df.sample(1000).sort_values("topic_id").reset_index(drop=True)
     elif CFG.medium:
-        corr_df = corr_df.sample(10000).reset_index(drop=True)
+        corr_df = corr_df.sample(10000).sort_values("topic_id").reset_index(drop=True)
 
     class_ratio = get_positive_class_ratio(corr_df)
     print(f"Positive class ratio: {class_ratio}")
@@ -184,6 +184,20 @@ def main():
                 print(f"Evaluating epoch {epoch}...")
                 all_probs, loss = evaluate(model, val_dset, device, global_step, run)
                 all_probs = post_process(all_probs, val_dset.topic_ids)
+
+                # Sanity check
+                sanity_pred = (all_probs >= 0.5).astype(float)
+                sanity_labels = np.array(val_dset.labels, dtype=float)
+                sanity_tp = np.sum(sanity_pred * sanity_labels).item()
+                sanity_fp = np.sum(sanity_pred * (1 - sanity_labels)).item()
+                sanity_fn = np.sum((1 - sanity_pred) * sanity_labels).item()
+                sanity_prec = safe_div(sanity_tp, sanity_tp + sanity_fp)
+                sanity_rec = safe_div(sanity_tp, sanity_tp + sanity_fn)
+                sanity_f2 = fscore_from_prec_rec(sanity_prec, sanity_rec)
+                print(f"Sanity micro prec: {sanity_prec:.5}")
+                print(f"Sanity micro rec: {sanity_rec:.5}")
+                print(f"Sanity micro f2: {sanity_f2:.5}")
+
                 fscores = get_cross_f2(all_probs, val_corr_df)
                 del all_probs
                 log_fscores(fscores, global_step, run)

@@ -63,11 +63,6 @@ def flatten_content_ids(df: pd.DataFrame) -> List[str]:
     return sorted(list(set([content_id for content_ids in df["content_ids"] for content_id in content_ids.split()])))
 
 
-def flatten_positive_negative_content_ids(df: pd.DataFrame) -> List[str]:
-    """Get flat list of all content ids and cand ids in the input DataFrame."""
-    return sorted(list(set([content_id for content_ids in df["content_ids"] for content_id in content_ids.split()] + [content_id for content_ids in df["cands"] for content_id in content_ids.split()])))
-
-
 def get_content_id_gold(input_df: pd.DataFrame) -> Dict[str, Set[str]]:
     """Get dictionary mapping content id to set of correct topic ids."""
     c2gold = defaultdict(set)
@@ -120,6 +115,12 @@ def are_content_ids_aligned(content_ids: List[str], c2i: Dict[str, int]) -> bool
         if check[entity_id] != entity_idx:
             return False
     return True
+
+
+def safe_div(a, b):
+    if b == 0.0:
+        return 0.0
+    return a / b
 
 
 def safe_div_np(num, den):
