@@ -1,7 +1,10 @@
-import numpy as np
+from typing import Tuple
 
-from metrics import np_fscore, single_fscore
-from utils import safe_div_np
+import numpy as np
+import pandas as pd
+
+from metrics import np_fscore, single_fscore, fscore_from_prec_rec
+from utils import safe_div_np, safe_div
 
 CROSS_EVAL_THRESHS = np.array([round(x, 3) for x in np.arange(0.001, 1.0 + 0.001, 0.001)])
 
@@ -65,11 +68,24 @@ def get_positive_class_ratio(corr_df):
     return acc_num_positives / acc_num_examples
 
 
-def check_bien_only_f2(corr_df):
+def sanity_check_bienc_only(corr_df: pd.DataFrame) -> Tuple[float, float]:
+    recs = np.empty(len(corr_df), dtype=float)
     scores = np.empty(len(corr_df), dtype=float)
     for i, (cat_content_ids, cat_cand_ids) in enumerate(zip(corr_df["content_ids"], corr_df["cands"])):
         gold = set(cat_content_ids.split())
         pred = set(cat_cand_ids.split())
+        recs[i] = len(pred & gold) / len(gold)
         scores[i] = single_fscore(gold, pred, 2.0)
-    return np.mean(scores).item()
+    return np.mean(recs).item(), np.mean(scores).item()
 
+
+def get_sanity_micro(all_probs, val_dset):
+    sanity_pred = (all_probs >= 0.5).astype(float)
+    sanity_labels = np.array(val_dset.labels, dtype=float)
+    sanity_tp = np.sum(sanity_pred * sanity_labels).item()
+    sanity_fp = np.sum(sanity_pred * (1 - sanity_labels)).item()
+    sanity_fn = np.sum((1 - sanity_pred) * sanity_labels).item()
+    sanity_prec = safe_div(sanity_tp, sanity_tp + sanity_fp)
+    sanity_rec = safe_div(sanity_tp, sanity_tp + sanity_fn)
+    sanity_f2 = fscore_from_prec_rec(sanity_prec, sanity_rec)
+    return sanity_prec, sanity_rec, sanity_f2

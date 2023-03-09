@@ -4,7 +4,6 @@ from datetime import datetime
 from pathlib import Path
 
 import neptune.new as neptune
-import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -20,13 +19,12 @@ import cross.tokenizer as tokenizer
 from ceevee import get_source_nonsource_topics
 from config import CFG, to_config_dct
 from cross.dset import CrossDataset
-from cross.metrics import get_positive_class_ratio, get_cross_f2, log_fscores, check_bien_only_f2
+from cross.metrics import get_positive_class_ratio, get_cross_f2, log_fscores, sanity_check_bienc_only, get_sanity_micro
 from cross.model import CrossEncoder
 from cross.post import post_process
 from data.content import get_content2text
 from data.topics import get_topic2text
-from metrics import fscore_from_prec_rec
-from utils import sanitize_fname, seed_everything, get_dfs, get_learning_rate_momentum, save_checkpoint, safe_div
+from utils import sanitize_fname, seed_everything, get_dfs, get_learning_rate_momentum, save_checkpoint
 
 
 def train_one_epoch(model: CrossEncoder, loader: DataLoader, device: torch.device,
@@ -111,8 +109,9 @@ def main():
 
     class_ratio = get_positive_class_ratio(corr_df)
     print(f"Positive class ratio: {class_ratio}")
-    sanity_score = check_bien_only_f2(corr_df)
+    sanity_perfect, sanity_score = sanity_check_bienc_only(corr_df)
     print(f"Sanity check bienc-only score @ {CFG.cross_num_cands} candidates: {sanity_score:.5}")
+    print(f"Sanity check perfect score @ {CFG.cross_num_cands} candidates: {sanity_perfect:.5}")
 
     topic2text = get_topic2text(topics_df)
     content2text = get_content2text(content_df)
@@ -174,6 +173,7 @@ def main():
         run["run_start"] = run_start
         run["positive_class_ratio"] = class_ratio
         run["sanity_bi_only"] = sanity_score
+        run["sanity_perfect_score"] = sanity_perfect
 
         # Train
         global_step = 0
@@ -189,14 +189,7 @@ def main():
                 all_probs = post_process(all_probs, val_dset.topic_ids)
 
                 # Sanity check
-                sanity_pred = (all_probs >= 0.5).astype(float)
-                sanity_labels = np.array(val_dset.labels, dtype=float)
-                sanity_tp = np.sum(sanity_pred * sanity_labels).item()
-                sanity_fp = np.sum(sanity_pred * (1 - sanity_labels)).item()
-                sanity_fn = np.sum((1 - sanity_pred) * sanity_labels).item()
-                sanity_prec = safe_div(sanity_tp, sanity_tp + sanity_fp)
-                sanity_rec = safe_div(sanity_tp, sanity_tp + sanity_fn)
-                sanity_f2 = fscore_from_prec_rec(sanity_prec, sanity_rec)
+                sanity_prec, sanity_rec, sanity_f2 = get_sanity_micro(all_probs, val_dset)
                 print(f"Sanity micro prec: {sanity_prec:.5}")
                 print(f"Sanity micro rec: {sanity_rec:.5}")
                 print(f"Sanity micro f2: {sanity_f2:.5}")
