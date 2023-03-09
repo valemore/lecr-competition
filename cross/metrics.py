@@ -1,6 +1,6 @@
 import numpy as np
 
-from metrics import np_fscore
+from metrics import np_fscore, single_fscore
 from utils import safe_div_np
 
 CROSS_EVAL_THRESHS = np.array([round(x, 3) for x in np.arange(0.001, 1.0 + 0.001, 0.001)])
@@ -63,3 +63,13 @@ def get_positive_class_ratio(corr_df):
         acc_num_examples += len(gold_ids) + len(negative_ids)
         acc_num_positives += len(gold_ids)
     return acc_num_positives / acc_num_examples
+
+
+def check_bien_only_f2(corr_df):
+    scores = np.empty(len(corr_df), dtype=float)
+    for i, (cat_content_ids, cat_cand_ids) in enumerate(zip(corr_df["content_ids"], corr_df["cands"])):
+        gold = set(cat_content_ids.split())
+        pred = set(cat_cand_ids.split())
+        scores[i] = single_fscore(gold, pred, 2.0)
+    return np.mean(scores).item()
+

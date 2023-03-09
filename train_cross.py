@@ -20,7 +20,7 @@ import cross.tokenizer as tokenizer
 from ceevee import get_source_nonsource_topics
 from config import CFG, to_config_dct
 from cross.dset import CrossDataset
-from cross.metrics import get_positive_class_ratio, get_cross_f2, log_fscores
+from cross.metrics import get_positive_class_ratio, get_cross_f2, log_fscores, check_bien_only_f2
 from cross.model import CrossEncoder
 from cross.post import post_process
 from data.content import get_content2text
@@ -111,6 +111,8 @@ def main():
 
     class_ratio = get_positive_class_ratio(corr_df)
     print(f"Positive class ratio: {class_ratio}")
+    sanity_score = check_bien_only_f2(corr_df)
+    print(f"Sanity check bienc-only score @ {CFG.cross_num_cands} candidates: {sanity_score:.5}")
 
     topic2text = get_topic2text(topics_df)
     content2text = get_content2text(content_df)
@@ -171,6 +173,7 @@ def main():
         run["part"] = "cross"
         run["run_start"] = run_start
         run["positive_class_ratio"] = class_ratio
+        run["sanity_bi_only"] = sanity_score
 
         # Train
         global_step = 0
