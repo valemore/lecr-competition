@@ -42,6 +42,7 @@ class CFG:
     max_lr = None
     weight_decay = None
     clip = None
+    token_dropout = None
     margin = None
     num_epochs = None
     use_amp = None

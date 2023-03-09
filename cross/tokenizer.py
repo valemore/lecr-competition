@@ -5,13 +5,16 @@ from transformers import AutoTokenizer
 from config import CFG
 
 tokenizer = None
+MASK_TOKEN_ID = None
 
 def init_tokenizer(pretrained_path=None):
-    global tokenizer
+    global tokenizer, MASK_TOKEN_ID
     if pretrained_path:
         tokenizer = AutoTokenizer.from_pretrained(pretrained_path, use_fast=True)
+        MASK_TOKEN_ID = tokenizer.mask_token_id
     else:
         tokenizer = AutoTokenizer.from_pretrained(CFG.CROSS_MODEL_NAME, use_fast=True)
+        MASK_TOKEN_ID = tokenizer.mask_token_id
 
 
 def tokenize_cross(topic_text: str, content_text, num_tokens: int) -> Dict[str, List[int]]:
@@ -28,6 +31,8 @@ def tokenize_cross(topic_text: str, content_text, num_tokens: int) -> Dict[str, 
                     padding="max_length",
                     add_special_tokens=True,
                     return_overflowing_tokens=False,
-                    return_offsets_mapping=False)
+                    return_offsets_mapping=False,
+                    return_special_tokens_mask=True,
+                    return_tensors="pt")
 
-    return {"input_ids": enc.input_ids, "attention_mask": enc.attention_mask}
+    return enc.input_ids.reshape(-1), enc.attention_mask.reshape(-1), enc.special_tokens_mask.reshape(-1)

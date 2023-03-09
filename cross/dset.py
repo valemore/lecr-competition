@@ -1,10 +1,12 @@
 from typing import Iterable, Dict
 
+import numpy as np
 import torch
 from torch.utils.data import Dataset
 from tqdm import tqdm
 
 from cross.tokenizer import tokenize_cross
+import cross.tokenizer as tk
 
 
 class CrossDataset(Dataset):
@@ -15,7 +17,8 @@ class CrossDataset(Dataset):
                  topic_cand_ids: Iterable[str],
                  topic2text: Dict[str, str], content2text: Dict[str, str],
                  num_tokens: int,
-                 is_val: bool):
+                 is_val: bool,
+                 dropout: float = 0.0):
         """
         Training dataset for the bi-encoder embedding content and topic texts into the same space.
         :param topic_ids: iterable over topic ids
@@ -25,6 +28,7 @@ class CrossDataset(Dataset):
         :param content2text: dictionary mapping content to its text representation
         :param num_tokens: how many tokens to use for joint representation
         :param is_val: whether this is a validation dataset. in that case, only include positives if they are candidates
+        :param dropout: randomly mask tokens at this rate
         """
         self.topic_ids = []
         self.content_ids = []
@@ -32,6 +36,7 @@ class CrossDataset(Dataset):
         self.topic2text = topic2text
         self.content2text = content2text
         self.num_tokens = num_tokens
+        self.dropout = dropout
 
         for topic_id, cat_gold_ids, cat_cand_ids, in tqdm(zip(topic_ids, topic_gold_ids, topic_cand_ids)):
             gold_ids = set(cat_gold_ids.split())
@@ -51,8 +56,11 @@ class CrossDataset(Dataset):
                 self.labels.append(0)
 
     def __getitem__(self, idx):
-        enc = tokenize_cross(self.topic2text[self.topic_ids[idx]], self.content2text[self.content_ids[idx]], self.num_tokens)
-        return torch.tensor(enc["input_ids"]), torch.tensor(enc["attention_mask"]), torch.tensor(self.labels[idx])
+        input_ids, attention_mask, special_tokens_mask = tokenize_cross(self.topic2text[self.topic_ids[idx]], self.content2text[self.content_ids[idx]], self.num_tokens)
+        if self.dropout:
+            r = torch.rand(len(input_ids))
+            input_ids[(special_tokens_mask == 0) & (r < self.dropout)] = tk.MASK_TOKEN_ID
+        return input_ids, attention_mask, torch.tensor(self.labels[idx])
 
     def __len__(self):
         return len(self.topic_ids)
