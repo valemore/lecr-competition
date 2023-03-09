@@ -40,6 +40,7 @@ class CFG:
     batch_size = None
     gpus = None
     max_lr = None
+    head_lr = None
     weight_decay = None
     clip = None
     token_dropout = None

@@ -31,12 +31,15 @@ def seed_everything(seed):
         torch.backends.cudnn.enabled = True
 
 
-def get_learning_rate_momentum(optimizer: torch.optim.Optimizer) -> Tuple[float, Union[float, None]]:
+def get_learning_rate_momentum(optimizer: torch.optim.Optimizer) -> Tuple[float, Union[float, None], Union[float, None]]:
     """Get learning rate and momentum for PyTorch optimizer OPTIMIZER."""
-    pg_idx = max([idx for idx in range(len(optimizer.param_groups))], key=lambda idx: optimizer.param_groups[idx]["lr"])
-    lr = optimizer.param_groups[pg_idx]["lr"]
-    momentum = optimizer.param_groups[pg_idx].get("momentum", None)
-    return lr, momentum
+    lr = optimizer.param_groups[0]["lr"]
+    momentum = optimizer.param_groups[0].get("momentum", None)
+    if CFG.head_lr:
+        classifier_lr = optimizer.param_groups[1]["lr"]
+    else:
+        classifier_lr = None
+    return lr, momentum, classifier_lr
 
 
 def save_checkpoint(fname: FName, global_step: int,

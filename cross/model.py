@@ -36,3 +36,9 @@ class CrossEncoder(nn.Module):
         self.encoder.config.save_pretrained(save_dir)
         torch.save(self.state_dict(), save_dir / "state_dict.pt")
         print(f"Model saved to {save_dir}")
+
+    def get_param_groups(self, head_lr):
+        return [
+            {"params": self.encoder.parameters()},
+            {"params": self.classifier.parameters(), "lr": head_lr}
+        ]

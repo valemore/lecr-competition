@@ -76,7 +76,7 @@ class LitBienc(pl.LightningModule):
         # Log
         if not CFG.tune_bs:
             self.run["loss"].log(loss.item(), step=self.global_step)
-            lr, momentum = get_learning_rate_momentum(self.optimizers().optimizer)
+            lr, momentum, _ = get_learning_rate_momentum(self.optimizers().optimizer)
             self.run["lr"].log(lr, step=self.global_step)
             if momentum:
                 self.run["momentum"].log(momentum, step=self.global_step)
@@ -101,7 +101,7 @@ class LitBienc(pl.LightningModule):
 
         # Log
         self.run["loss"].log(loss.item(), step=self.global_step)
-        lr, momentum = get_learning_rate_momentum(self.optimizers().optimizer)
+        lr, momentum, _ = get_learning_rate_momentum(self.optimizers().optimizer)
         self.run["lr"].log(lr, step=self.global_step)
         if momentum:
             self.run["momentum"].log(momentum, step=self.global_step)

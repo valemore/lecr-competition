@@ -53,10 +53,12 @@ def train_one_epoch(model: CrossEncoder, loader: DataLoader, device: torch.devic
 
         # Log
         run["loss"].log(loss.item(), step=step)
-        lr, momentum = get_learning_rate_momentum(optim)
+        lr, momentum, head_lr = get_learning_rate_momentum(optim)
         run["lr"].log(lr, step=step)
         if momentum:
             run["momentum"].log(momentum, step=step)
+        if head_lr:
+            run["head_lr"].log(head_lr, step=step)
 
         step += 1
     return step
@@ -149,7 +151,12 @@ def main():
         else:
             model = model.to(device)
 
-        optim = AdamW(model.parameters(), lr=CFG.max_lr, weight_decay=CFG.weight_decay)
+        if CFG.head_lr:
+            param_groups = model.get_param_groups(CFG.head_lr)
+        else:
+            param_groups = model.parameters()
+
+        optim = AdamW(param_groups, lr=CFG.max_lr, weight_decay=CFG.weight_decay)
         scaler = GradScaler(enabled=CFG.use_amp)
         if CFG.scheduler == "plateau":
             scheduler = ReduceLROnPlateau(optim, mode="max", patience=2)
@@ -233,6 +240,7 @@ if __name__ == "__main__":
     parser.add_argument("--medium", action="store_true")
     parser.add_argument("--batch_size", type=int, default=64)
     parser.add_argument("--max_lr", type=float, default=3e-5)
+    parser.add_argument("--head_lr", type=float, default=None)
     parser.add_argument("--weight_decay", type=float, default=0.0)
     parser.add_argument("--clip", type=float)
     parser.add_argument("--token_dropout", default=0.0, type=float)
@@ -264,6 +272,7 @@ if __name__ == "__main__":
     CFG.small = args.small
     CFG.batch_size = args.batch_size
     CFG.max_lr = args.max_lr
+    CFG.head_lr = args.head_lr
     CFG.weight_decay = args.weight_decay
     CFG.clip = args.clip
     CFG.token_dropout = args.token_dropout
