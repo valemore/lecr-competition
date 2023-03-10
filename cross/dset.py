@@ -95,8 +95,8 @@ class CrossInferenceDataset(Dataset):
                 self.content_ids.append(content_id)
 
     def __getitem__(self, idx):
-        enc = tokenize_cross(self.topic2text[self.topic_ids[idx]], self.content2text[self.content_ids[idx]], self.num_tokens)
-        return torch.tensor(enc["input_ids"]), torch.tensor(enc["attention_mask"])
+        input_ids, attention_mask, _ = tokenize_cross(self.topic2text[self.topic_ids[idx]], self.content2text[self.content_ids[idx]], self.num_tokens)
+        return input_ids, attention_mask
 
     def __len__(self):
         return len(self.topic_ids)
