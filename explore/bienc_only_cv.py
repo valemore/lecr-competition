@@ -40,3 +40,22 @@ df.loc[:, ["name", "f2", "num_cands"]].groupby("name").mean()
 # cos-15               0.623210        6.0
 # onlybi               0.617060        6.0
 # roberta-large-cos10  0.605716        6.8
+
+runids = dct["onlybi"]
+rows = []
+for runid in runids:
+    run = neptune.init_run(project="vmorelli/kolibri", with_id=runid)
+    precisionat6 = run[f"cands/precision@6"].fetch_last()
+    recallat6 = run[f"cands/recall@6"].fetch_last()
+    f2at6 = fscore_from_prec_rec(precisionat6, recallat6)
+
+    precisionat7 = run[f"cands/precision@7"].fetch_last()
+    recallat7 = run[f"cands/recall@7"].fetch_last()
+    f2at7 = fscore_from_prec_rec(precisionat7, recallat6)
+
+    rows.append({"runid": runid, "f2at6": f2at6, "f2at7": f2at7})
+
+df = pd.DataFrame.from_records(rows)
+df.mean()
+# f2at6    0.617060
+# f2at7    0.599758
