@@ -94,3 +94,28 @@ def main(classifier_thresh: float,
     df = cross_main(classifier_thresh, cand_df, topic2text, content2text, cross_dir, cross_batch_size, device)
     df = to_submission_df(df)
     return df
+
+
+def main_only_bienc(num_cands: int,
+                    data_dir: FName,
+                    bienc_tokenizer_dir: FName, bienc_dir: FName,
+                    filter_lang: bool,
+                    bienc_batch_size: int):
+    data_dir = Path(data_dir)
+    device = torch.device("cuda")
+    init_bienc_tokenizer(bienc_tokenizer_dir)
+
+    topics_df, content_df, input_df = get_dfs(data_dir, "submit")
+    topic_ids = sorted(list(set(input_df["topic_id"])))
+    content_ids, c2i = get_content_ids_c2i(content_df)
+    topic2text = get_topic2text(topics_df)
+    content2text = get_content2text(content_df)
+
+    t2lang, c2lang = get_t2lang_c2lang(input_df, content_df)
+
+    indices = bienc_main(topic_ids, content_ids,
+                         topic2text, content2text, c2i,
+                         filter_lang, t2lang, c2lang,
+                         bienc_dir, bienc_batch_size, device)
+    df = get_cand_df(topic_ids, indices, c2i, num_cands).rename(columns={"cands": "content_ids"})
+    return df
