@@ -2,6 +2,7 @@
 if [ $# -eq 0 ]
   then
     echo "No arguments supplied"
+    exit
 fi
 SSH_PROFILE=$1
 BASE_DIR='/root/kolibri'
