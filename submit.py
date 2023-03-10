@@ -64,7 +64,8 @@ def to_submission_df(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def main(classifier_thresh: float,
+def main(num_cands: int,
+         classifier_thresh: float,
          data_dir: FName,
          bienc_tokenizer_dir: FName, bienc_dir: FName,
          cross_tokenizer_dir: FName, cross_dir: FName,
@@ -87,7 +88,7 @@ def main(classifier_thresh: float,
                          topic2text, content2text, c2i,
                          filter_lang, t2lang, c2lang,
                          bienc_dir, bienc_batch_size, device)
-    cand_df = get_cand_df(topic_ids, indices, c2i)
+    cand_df = get_cand_df(topic_ids, indices, c2i, num_cands)
     del indices
     gc.collect()
 
