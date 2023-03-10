@@ -177,3 +177,16 @@ def get_content_ids_c2i(content_df: pd.DataFrame):
     content_ids = sorted(list(set(content_df["id"])))
     c2i = {content_id: content_idx for content_idx, content_id in enumerate(content_ids)}
     return content_ids, c2i
+
+
+def merge_cols(df: pd.DataFrame, other: pd.DataFrame, cols: List[str],
+               on: Union[None, str] = None, left_on: Union[None, str] = None, right_on: Union[None, str] = None):
+    """Merges COLS from OTHER into dataframe DF and drops duplicate id columns."""
+    if on is not None:
+        assert left_on is None and right_on is None
+        kept_cols = [on] + cols
+        return df.merge(other.loc[:, kept_cols], on=on, how="left")
+    if left_on is not None or right_on is not None:
+        assert left_on is not None and right_on is not None and on is None
+        kept_cols = [right_on] + cols
+        return df.merge(other.loc[:, kept_cols], left_on=left_on, right_on=right_on, how="left").drop(columns=[right_on])
