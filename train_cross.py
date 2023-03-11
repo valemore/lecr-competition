@@ -153,7 +153,7 @@ def main():
         else:
             param_groups = model.parameters()
 
-        optim = AdamW(param_groups, lr=CFG.max_lr if CFG.scheduler != "onecycle" else 5e-7, weight_decay=CFG.weight_decay)
+        optim = AdamW(param_groups, lr=CFG.max_lr, weight_decay=CFG.weight_decay)
         scaler = GradScaler(enabled=CFG.use_amp)
         if CFG.scheduler == "plateau":
             scheduler = ReduceLROnPlateau(optim, mode="max", patience=2)
