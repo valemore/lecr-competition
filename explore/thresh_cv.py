@@ -23,3 +23,16 @@ mean_scores = np.mean(scores, axis=0)
 best_thresh_idx = np.argmax(mean_scores)
 
 best_thresh = CROSS_EVAL_THRESHS[best_thresh_idx]
+# 0.049
+
+scores[:, best_thresh_idx]
+# array([0.62275756, 0.61361609, 0.62744043])
+
+mean_scores[best_thresh_idx]
+# 0.621271360613253
+
+best_threshs = np.argmax(scores, 1)
+CROSS_EVAL_THRESHS[best_threshs]
+# array([0.051, 0.083, 0.024])
+np.mean(CROSS_EVAL_THRESHS[best_threshs])
+# 0.05266666666666667
