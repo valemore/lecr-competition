@@ -12,7 +12,7 @@ from neptune.new import Run
 from sklearn.model_selection import KFold
 from torch.cuda.amp import GradScaler
 from torch.optim import AdamW, Optimizer
-from torch.optim.lr_scheduler import ReduceLROnPlateau, CosineAnnealingWarmRestarts
+from torch.optim.lr_scheduler import ReduceLROnPlateau, CosineAnnealingWarmRestarts, OneCycleLR
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
@@ -49,7 +49,7 @@ def train_one_epoch(model: CrossEncoder, loader: DataLoader, device: torch.devic
         scaler.step(optim)
         scaler.update()
 
-        if CFG.scheduler == "cosine":
+        if CFG.scheduler == "cosine" or CFG.scheduler == "onecycle":
             scheduler.step()
 
         # Log
@@ -165,6 +165,8 @@ def main():
             scheduler = ReduceLROnPlateau(optim, mode="max", patience=2)
         elif CFG.scheduler == "cosine":
             scheduler = CosineAnnealingWarmRestarts(optim, T_0=CFG.num_epochs * len(train_loader))
+        elif CFG.scheduler == "onecycle":
+            scheduler = OneCycleLR(optim, CFG.max_lr, total_steps=CFG.num_epochs * len(train_loader))
         else:
             scheduler = None
 
@@ -269,7 +271,7 @@ if __name__ == "__main__":
     parser.add_argument("--oversample", default=1, type=int)
     parser.add_argument("--num_epochs", type=int, default=3)
     parser.add_argument("--use_fp", action="store_true")
-    parser.add_argument("--scheduler", type=str, choices=["none", "cosine", "plateau"], default="none")
+    parser.add_argument("--scheduler", type=str, choices=["none", "cosine", "plateau", "onecycle"], default="none")
     parser.add_argument("--experiment_name", type=str, required=True)
     parser.add_argument("--df", type=str, required=True)
     parser.add_argument("--cross_dropout", default=0.1, type=float)
