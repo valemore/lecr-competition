@@ -96,9 +96,6 @@ def evaluate(model: CrossEncoder, dset: CrossDataset, device: torch.device,
 
 def main():
     device = torch.device("cuda")
-    CFG.gpus = torch.cuda.device_count()
-    if CFG.gpus > 1:
-        CFG.NUM_WORKERS = 0
     output_dir = Path(CFG.output_dir)
     pseudo_dir = Path(CFG.pseudo_dir)
     checkpoint_dir = Path(CFG.checkpoint_dir)
@@ -149,10 +146,7 @@ def main():
                                     topic2text, content2text, CFG.CROSS_NUM_TOKENS, is_val=True)
 
         model = CrossEncoder(dropout=CFG.cross_dropout)
-        if CFG.gpus > 1:
-            model = nn.DataParallel(model).to(device)
-        else:
-            model = model.to(device)
+        model = model.to(device)
 
         if CFG.head_lr:
             param_groups = model.get_param_groups(CFG.head_lr)
@@ -229,21 +223,14 @@ def main():
 
             # Save checkpoint
             if CFG.checkpoint:
-                if CFG.gpus > 1:
-                    save_checkpoint(checkpoint_dir / f"{run_id}" / f"epoch-{epoch}.pt", global_step,
-                                    model.module.state_dict(), optim.state_dict(), None, scaler.state_dict())
-                else:
-                    save_checkpoint(checkpoint_dir / f"{run_id}" / f"epoch-{epoch}.pt", global_step,
-                                    model.state_dict(), optim.state_dict(), None, scaler.state_dict())
+                save_checkpoint(checkpoint_dir / f"{run_id}" / f"epoch-{epoch}.pt", global_step,
+                                model.state_dict(), optim.state_dict(), None, scaler.state_dict())
 
         # Save artifacts
         out_dir = output_dir / f"{run_id}" / "cross"
         out_dir.mkdir(parents=True, exist_ok=True)
         # (output_dir / f"{run_id}" / "tokenizer").mkdir(parents=True, exist_ok=True)
-        if CFG.gpus > 1:
-            model.module.save(out_dir)
-        else:
-            model.save(out_dir)
+        model.save(out_dir)
         tokenizer.tokenizer.save_pretrained(output_dir / f"{run_id}" / "tokenizer")
 
         fold_idx += 1

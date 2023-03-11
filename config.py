@@ -38,7 +38,6 @@ class CFG:
     # Config options only needed during training
     tiny = None
     batch_size = None
-    gpus = None
     max_lr = None
     head_lr = None
     weight_decay = None
