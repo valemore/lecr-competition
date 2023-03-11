@@ -212,7 +212,7 @@ def main():
                     (pseudo_dir / f"{experiment_id}").mkdir(parents=True, exist_ok=True)
                     pseudo_fname = pseudo_dir / f"{experiment_id}" / f"fold-{fold_idx}.csv"
                     pseudo_df = pd.DataFrame({"topic_id": val_dset.topic_ids, "content_id": val_dset.content_ids,
-                                              "prob": all_probs, "fold": fold_idx})
+                                              "label": val_dset.labels, "prob": all_probs, "fold": fold_idx})
                     pseudo_df.to_csv(pseudo_fname, index=False)
                     print(f"Wrote pseudo df to {pseudo_fname}")
                     del pseudo_df
