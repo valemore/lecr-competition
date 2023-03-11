@@ -4,6 +4,7 @@ from datetime import datetime
 from pathlib import Path
 
 import neptune.new as neptune
+import pandas as pd
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -99,6 +100,7 @@ def main():
     if CFG.gpus > 1:
         CFG.NUM_WORKERS = 0
     output_dir = Path(CFG.output_dir)
+    pseudo_dir = Path(CFG.pseudo_dir)
     checkpoint_dir = Path(CFG.checkpoint_dir)
 
     topics_df, content_df, corr_df = get_dfs(CFG.DATA_DIR, "cross")
@@ -123,6 +125,7 @@ def main():
 
     del topics_df, content_df
 
+    experiment_id = f'{CFG.experiment_name}_{datetime.utcnow().strftime("%m%d-%H%M%S")}'
     fold_idx = 0 if CFG.folds != "no" else -1
     for train_idxs, val_idxs in KFold(n_splits=CFG.num_folds, shuffle=True, random_state=CFG.VAL_SPLIT_SEED).split(nonsource_topics):
         if (CFG.folds == "first" and fold_idx > 0) or (CFG.folds == "no" and fold_idx == 0):
@@ -175,6 +178,7 @@ def main():
         if CFG.tiny:
             run_id = "TINY_" + run_id
         run["run_id"] = run_id
+        run["experiment_id"] = experiment_id
         run["parameters"] = to_config_dct(CFG)
         run["fold_idx"] = fold_idx
         run["part"] = "cross"
@@ -201,6 +205,16 @@ def main():
                 print(f"Sanity micro prec: {sanity_prec:.5}")
                 print(f"Sanity micro rec: {sanity_rec:.5}")
                 print(f"Sanity micro f2: {sanity_f2:.5}")
+
+                if epoch == CFG.num_epochs - 1:
+                    (pseudo_dir / f"{experiment_id}").mkdir(parents=True, exist_ok=True)
+                    pseudo_fname = pseudo_dir / f"{experiment_id}" / f"fold-{fold_idx}.csv"
+                    pseudo_df = pd.DataFrame({"topic_id": val_dset.topic_ids, "content_id": val_dset.content_ids,
+                                              "prob": all_probs, "fold": fold_idx})
+                    pseudo_df.to_csv(pseudo_fname, index=False)
+                    print(f"Wrote pseudo df to {pseudo_fname}")
+                    del pseudo_df
+
 
                 fscores = get_cross_f2(all_probs, val_corr_df)
                 del all_probs
@@ -232,6 +246,14 @@ def main():
         fold_idx += 1
         run.stop()
 
+    if CFG.folds == "all":
+        pseudo_df = pd.DataFrame()
+        for fold_idx in range(CFG.num_folds):
+            pseudo_df = pd.concat([pseudo_df, pd.read_csv(pseudo_dir / f"{experiment_id}" / f"fold-{fold_idx}.csv", keep_default_na=False)]).reset_index(drop=True)
+        pseudo_df = pseudo_df.sort_values("topic_id").reset_index(drop=True)
+        pseudo_df.to_csv(pseudo_dir / f"{experiment_id}" / "all_folds.csv", index=False)
+        print(f'Wrote pseudo df to {pseudo_dir / f"{experiment_id}" / "all_folds.csv"}')
+
 
 if __name__ == "__main__":
     parser = ArgumentParser()
@@ -255,6 +277,7 @@ if __name__ == "__main__":
     parser.add_argument("--folds", type=str, choices=["first", "all", "no"], default="first")
     parser.add_argument("--num_folds", type=int, default=3)
     parser.add_argument("--output_dir", type=str, default="../cout")
+    parser.add_argument("--pseudo_dir", type=str, default="../pseudo")
     parser.add_argument("--checkpoint", action="store_true")
     parser.add_argument("--checkpoint_dir", type=str, default="../check-cross")
 
@@ -287,6 +310,7 @@ if __name__ == "__main__":
     CFG.folds = args.folds
     CFG.num_folds = args.num_folds
     CFG.output_dir = args.output_dir
+    CFG.pseudo_dir = args.pseudo_dir
     CFG.checkpoint = args.checkpoint
     CFG.checkpoint_dir = args.checkpoint_dir
 
