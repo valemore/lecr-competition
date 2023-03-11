@@ -166,7 +166,8 @@ def main():
         elif CFG.scheduler == "cosine":
             scheduler = CosineAnnealingWarmRestarts(optim, T_0=CFG.num_epochs * len(train_loader))
         elif CFG.scheduler == "onecycle":
-            scheduler = OneCycleLR(optim, CFG.max_lr, total_steps=CFG.num_epochs * len(train_loader))
+            scheduler = OneCycleLR(optim, [CFG.max_lr, CFG.head_lr] if CFG.head_lr else CFG.max_lr,
+                                   total_steps=CFG.num_epochs * len(train_loader))
         else:
             scheduler = None
 
