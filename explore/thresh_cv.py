@@ -10,7 +10,7 @@ from metrics import fscore_from_prec_rec
 os.environ["NEPTUNE_API_TOKEN"] = "eyJhcGlfYWRkcmVzcyI6Imh0dHBzOi8vdWkubmVwdHVuZS5haSIsImFwaV91cmwiOiJodHRwczovL3VpLm5lcHR1bmUuYWkiLCJhcGlfa2V5IjoiYjA4NzA3YWQtZjQxNi00MTY3LWE1NzktZDg0MmY2ZWQ3MzdkIn0="
 
 
-runids = ["KLB-1064", "KLB-1053", "KLB-1050"]
+runids = ["KLB-1105", "KLB-1115", "KLB-1118"]
 
 scores = np.empty((len(runids), len(CROSS_EVAL_THRESHS)), dtype=float)
 for i, runid in enumerate(runids):
@@ -23,16 +23,18 @@ mean_scores = np.mean(scores, axis=0)
 best_thresh_idx = np.argmax(mean_scores)
 
 best_thresh = CROSS_EVAL_THRESHS[best_thresh_idx]
-# 0.049
+# 0.05
 
 scores[:, best_thresh_idx]
-# array([0.62275756, 0.61361609, 0.62744043])
+# array([0.63315668, 0.62020532, 0.63355324])
 
 mean_scores[best_thresh_idx]
-# 0.621271360613253
+# 0.6289717469681398
 
-best_threshs = np.argmax(scores, 1)
-CROSS_EVAL_THRESHS[best_threshs]
-# array([0.051, 0.083, 0.024])
-np.mean(CROSS_EVAL_THRESHS[best_threshs])
-# 0.05266666666666667
+# OUTDATED - WRONG WAY
+#
+# best_threshs = np.argmax(scores, 1)
+# CROSS_EVAL_THRESHS[best_threshs]
+# # array([0.051, 0.083, 0.024])
+# np.mean(CROSS_EVAL_THRESHS[best_threshs])
+# # 0.05266666666666667
